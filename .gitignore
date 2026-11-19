@@ -158,3 +158,6 @@ app/web/dist/
 !app/api/package-lock.json
 !app/web/package.json
 !app/web/package-lock.json
+
+# Dependências da imagem de ETL
+!scripts/requirements.txt

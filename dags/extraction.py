@@ -11,6 +11,13 @@ default_args = {
     'retries': 1,
 }
 
+# Segredos vindos das Variables do Airflow (secrets backend em /opt/secrets)
+ETL_ENV = {
+    "MONGO_URI": "{{ var.value.MONGO_URI }}",
+    "POSTGRESQL_URI": "{{ var.value.POSTGRESQL_URI }}",
+}
+
+
 with DAG(
     dag_id="extraction",
     default_args=default_args,
@@ -25,7 +32,8 @@ with DAG(
         auto_remove=True,
         command="python3 scripts/etl/extraction/links.py",
         docker_url="unix://var/run/docker.sock",
-        network_mode="bridge",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
         mount_tmp_dir=False
     )
 
@@ -36,7 +44,8 @@ with DAG(
         auto_remove=True,
         command="python3 scripts/etl/extraction/property.py",
         docker_url="unix://var/run/docker.sock",
-        network_mode="bridge",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
         mount_tmp_dir=False
     )
 
@@ -47,7 +56,8 @@ with DAG(
         auto_remove=True,
         command="python3 scripts/etl/extraction/real_estate.py",
         docker_url="unix://var/run/docker.sock",
-        network_mode="bridge",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
         mount_tmp_dir=False
     )
 

@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends wget unzip
 
@@ -15,8 +15,7 @@ ENV LC_TIME=pt_BR.UTF-8
 
 WORKDIR /app
 
-COPY .env /app/
-COPY client_secrets.json /app/
+# Segredos (MONGO_URI, POSTGRESQL_URI, ...) são injetados em tempo de execução
 COPY requirements.txt /app/
 
 RUN mkdir -p /app/scripts
