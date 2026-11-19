@@ -27,3 +27,12 @@ Todos os endpoints aceitam `?modo=aluguel|venda` (a página inteira é filtrada 
 ## Design
 
 Página editorial com uma cor de identidade (salmão `#e2634d`), validada nos dois temas com o validador de paleta da skill `dataviz` (luminosidade, croma e contraste >= 3:1 para marcas; texto >= 4,5:1). Títulos em Fraunces (serifa) e todo o resto, incluindo os números, em Inter, ambas empacotadas localmente (`@fontsource-variable`), sem depender de rede. O tema segue o sistema e pode ser trocado no botão do topo.
+
+## Demonstração em vídeo
+
+`docs/media/demo.gif` e `docs/media/demo.mp4` são gerados por um roteiro Selenium que abre o app, troca de modo, passa o cursor nos gráficos, abre a tabela e muda o tema. Para refazer depois de mudar a tela (com a API e o app no ar):
+
+```bash
+pip install pillow imageio imageio-ffmpeg numpy selenium
+PYTHONPATH=. python docs/experiments/record_demo.py
+```

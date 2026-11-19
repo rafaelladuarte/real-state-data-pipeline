@@ -73,8 +73,16 @@ Com 2 workers o teto global já é atingido; mais workers só aumentam o uso de 
 ## App
 
 <p align="center">
-  <img src="docs/images/app.png" alt="App no tema claro" width="49%">
-  <img src="docs/images/app-dark.png" alt="App no tema escuro" width="49%">
+  <img src="docs/media/demo.gif" alt="Demonstração do app: troca entre aluguel e venda, gráficos, tabela e tema escuro" width="900">
+</p>
+<p align="center">
+  <sub>Demonstração de 20 s: manchete e número de destaque, tooltip e tabela de um gráfico, troca de <b>Aluguel</b> para <b>Venda</b> e tema escuro.
+  <a href="docs/media/demo.mp4">Ver em MP4</a> (melhor qualidade).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/app.png" alt="App no tema claro, modo aluguel" width="49%">
+  <img src="docs/images/app-dark.png" alt="App no tema escuro, modo venda" width="49%">
 </p>
 
 Uma página editorial em vez de um painel de relatório: a manchete pergunta *quanto custa alugar em Uberlândia?* e responde com um número de destaque (a **mediana** do aluguel), seguido de seções cujos títulos enunciam a conclusão do gráfico. Preço médio e idade mediana do anúncio por bairro (só com 3 ou mais anúncios, para um imóvel isolado não distorcer), oferta por bairro, dispersão preço × metragem, variação de preço entre coletas e uma lista filtrável de anúncios.
