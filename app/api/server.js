@@ -91,6 +91,49 @@ route("/api/variacao-preco", async () => {
   return { coletas, variacoes };
 });
 
+// Números de destaque da página (usa o modo com mais anúncios; medianas, não médias)
+route("/api/destaques", async () => {
+  const [top] = await q(
+    `SELECT m.modo FROM imovel i JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+     GROUP BY m.modo ORDER BY COUNT(*) DESC LIMIT 1`
+  );
+  if (!top) return { modo: null };
+  const [geral] = await q(
+    `SELECT COUNT(*)::int AS total,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY i.preco))::int AS preco_mediano,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY i.custo_m2))::int AS preco_m2_mediano,
+            COUNT(DISTINCT e.bairro)::int AS bairros
+     FROM imovel i
+     JOIN endereco e ON e.id_endereco = i.id_endereco_imovel
+     JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+     WHERE m.modo = $1`,
+    [top.modo]
+  );
+  const porTipo = await q(
+    `SELECT t.tipo,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY i.preco))::int AS mediana,
+            COUNT(*)::int AS quantidade
+     FROM imovel i
+     JOIN tipo_imovel t ON t.id_tipo = i.id_tipo_imovel
+     JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+     WHERE m.modo = $1
+     GROUP BY t.tipo ORDER BY quantidade DESC`,
+    [top.modo]
+  );
+  const [tempo] = await q(
+    `SELECT ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dias_no_mercado))::int AS dias_mediana
+     FROM imovel_ciclo_vida WHERE modo = $1 AND dias_no_mercado >= 0`,
+    [top.modo]
+  );
+  const [coleta] = await q(
+    `SELECT TO_CHAR(MAX(data_coleta), 'DD/MM/YYYY') AS coletado_em FROM imovel_snapshot`
+  );
+  return {
+    modo: top.modo, ...geral, por_tipo: porTipo,
+    dias_mediana: tempo?.dias_mediana ?? null, coletado_em: coleta?.coletado_em ?? null,
+  };
+});
+
 route("/api/preco-modo-tipo", () =>
   q("SELECT tipo, modo, media_preco::float AS media_preco FROM media_preco_modo_tipo")
 );

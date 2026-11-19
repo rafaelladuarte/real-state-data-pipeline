@@ -73,10 +73,17 @@ Com 2 workers o teto global já é atingido; mais workers só aumentam o uso de 
 ## App
 
 <p align="center">
-  <img src="docs/images/app.png" alt="App de visualização" width="900">
+  <img src="docs/images/app.png" alt="App no tema claro" width="49%">
+  <img src="docs/images/app-dark.png" alt="App no tema escuro" width="49%">
 </p>
 
-Preço médio e tempo mediano no mercado por bairro (com mínimo de 3 anúncios, para não refletir um imóvel isolado), distribuição por tipo, dispersão preço × área, variação de preço entre coletas e listagem filtrável. Detalhes em [app/README.md](app/README.md).
+Uma página editorial em vez de um painel de relatório: a manchete pergunta *quanto custa alugar em Uberlândia?* e responde com um número de destaque (a **mediana** do aluguel), seguido de seções cujos títulos enunciam a conclusão do gráfico. Preço médio e idade mediana do anúncio por bairro (só com 3 ou mais anúncios, para um imóvel isolado não distorcer), oferta por bairro, dispersão preço × metragem, variação de preço entre coletas e uma lista filtrável de anúncios.
+
+- **Identidade visual:** um único salmão (`#e2634d`), validado nos temas claro e escuro quanto a faixa de luminosidade, croma e contraste; títulos em serifa e números sempre em sans.
+- **Acessível por padrão:** cada gráfico tem a tabela equivalente a um clique ("Ver como tabela"), foco visível, tema claro/escuro e respeito a `prefers-reduced-motion`.
+- **Gráficos leves:** barras finas com o valor na ponta, grade em fio, tooltip próprio e pontos com área de toque maior que a marca.
+
+Detalhes em [app/README.md](app/README.md).
 
 > Os números do app vêm de uma **amostra** de aluguel coletada em 19/11/2026 (169 imóveis, 26 imobiliárias, primeiras páginas de cada busca). Não representam o mercado inteiro.
 
