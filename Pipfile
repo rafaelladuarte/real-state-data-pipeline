@@ -18,6 +18,8 @@ psycopg2-binary = "*"
 eralchemy = {extras = ["graphviz"], version = "*"}
 sqlalchemy-utils = "*"
 webdriver-manager = "*"
+beautifulsoup4 = "*"
+lxml = "*"
 
 [dev-packages]
 pytest = "*"

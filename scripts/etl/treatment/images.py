@@ -1,12 +1,22 @@
 from scripts.infra.storage.driver import GoogleDriver
 from scripts.infra.security.secrets import get_secret_value
+from scripts.utility.log import get_logger
+
+import os
 
 from scripts.utility.image import (
     download_image, delete_image
 )
 
 
+logger = get_logger(__name__)
+
+
 def treatment_images(original_images, hash):
+    if not os.getenv('CRED_PATH'):
+        # Sem credenciais do Google Drive, mantém as URLs originais do anúncio
+        logger.warning("CRED_PATH ausente: mantendo URLs originais das imagens")
+        return list(original_images[:10])
 
     drive = GoogleDriver(
         creds_path=get_secret_value('CRED_PATH'),

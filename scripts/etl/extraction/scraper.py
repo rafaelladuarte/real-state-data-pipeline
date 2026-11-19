@@ -140,6 +140,30 @@ class WebScraper:
 
         return element
 
+    def fetch_html(self, url: str, wait_css: str, timeout: int = 20) -> str:
+        """Abre a URL, espera o seletor aparecer e devolve o HTML renderizado."""
+        self.driver.get(url)
+        WebDriverWait(self.driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, wait_css))
+        )
+        return self.driver.page_source
+
+    @staticmethod
+    def fetch_html_once(
+        url: str, wait_css: str, timeout: int = 20, retries: int = 2
+    ) -> str:
+        """Busca o HTML com um navegador novo; tenta de novo se expirar."""
+        for attempt in range(1, retries + 1):
+            scraper = WebScraper()
+            try:
+                return scraper.fetch_html(url, wait_css, timeout)
+            except TimeoutException:
+                if attempt == retries:
+                    raise
+                sleep(5)
+            finally:
+                scraper.close_driver()
+
     def close_driver(self):
         self.driver.quit()
 

@@ -1,24 +1,31 @@
-from scripts.utility.log import get_logger
-from selenium.webdriver.common.by import By
-
+from scripts.etl.extraction.parsers import (
+    parse_listing_links, parse_total_results
+)
 from scripts.etl.extraction.scraper import WebScraper
-from scripts.infra.storage.mongo import MongoDB
-
 from scripts.infra.security.secrets import get_secret_value
-from scripts.utility.operator import extract_number
+from scripts.infra.storage.mongo import MongoDB
+from scripts.utility.log import get_logger
 
 from datetime import datetime
 from time import sleep
 
+import os
+
 
 logger = get_logger(__name__)
 
-mongo = MongoDB(
-    uri=get_secret_value('MONGO_URI')
-)
+PAGE_SIZE = 30
+LISTING_READY_CSS = 'script[type="application/ld+json"]'
+# Limite de páginas por busca (cada página traz ~30 anúncios)
+MAX_PAGES = int(os.getenv("MAX_PAGES", "3"))
+PAUSE_SECONDS = 3
 
 
 def get_links_property():
+    mongo = MongoDB(
+        uri=get_secret_value('MONGO_URI')
+    )
+
     tipos = [
         "casas",
         "apartamentos",
@@ -33,110 +40,62 @@ def get_links_property():
     ]
 
     blends = [
-        (
-            modo,
-            tipo
-        )
+        (modo, tipo)
         for tipo in tipos
         for modo in modos
     ]
 
-    for modo, tipo in blends:
+    known_links = {
+        doc["link"]
+        for doc in mongo.get_documents(
+            query={}, collection='links_imoveis'
+        )
+    }
 
+    for modo, tipo in blends:
         url = f"https://www.zapimoveis.com.br/{modo}/{tipo}/mg+uberlandia/"
 
         logger.info(f"----------- {tipo.upper()} {modo.upper()} -----------")
 
-        scraper = WebScraper()
-        scraper.get_driver(url)
+        html = WebScraper.fetch_html_once(url, LISTING_READY_CSS)
+        total = parse_total_results(html) or 0
+        pages = min(MAX_PAGES, -(-total // PAGE_SIZE))
+        logger.info(f"{total} anúncios encontrados; coletando {pages} páginas")
 
-        sleep(2)
-
-        property_result = scraper.get_element(
-            by=By.CLASS_NAME,
-            path='result-wrapper__title',
-        )
-
-        property_qtf = scraper.get_element(
-            by=By.TAG_NAME,
-            path='h1',
-            attribute_type='text',
-            driver_element=property_result
-        )
-
-        qtf = extract_number(property_qtf)
-        pages = int((qtf/50) - 1)
-
-        scraper.close_driver()
-
-        for page in range(1, pages):
-            data = []
-
-            if page == 4:
-                break
-
+        for page in range(1, pages + 1):
             logger.info(f"- PÁGINA {page}")
-
-            scraper = WebScraper()
-            scraper.get_driver(url + f"?pagina={page}")
-
-            logger.info("Scroll down page...")
-            scraper.scroll_until_element_stops_moving(
-                "aside.campaign[data-cy='campaign']"
-            )
-
-            logger.info("Get cards in container")
-            cards_container = scraper.get_element(
-                by=By.CLASS_NAME,
-                path="listing-wrapper__content",
-            )
-            list_cards = scraper.get_elements(
-                by=By.CSS_SELECTOR,
-                path='div[data-position]',
-                driver_element=cards_container,
-            )
-
-            logger.info("Get information")
-            for full_card in list_cards:
-                n = full_card.get_attribute("data-position")
-                card = scraper.get_element(
-                    by=By.CLASS_NAME,
-                    path="BaseCard_card__content__pL2Vc",
-                    driver_element=full_card
+            if page > 1:
+                sleep(PAUSE_SECONDS)
+                html = WebScraper.fetch_html_once(
+                    f"{url}?pagina={page}", LISTING_READY_CSS
                 )
 
-                link = scraper.get_element(
-                    by=By.XPATH,
-                    path=f'//*[@id="__next"]//div[{n}]/div/a',
-                    attribute_type="href",
-                    driver_element=card
-                )
+            links = [
+                link for link in parse_listing_links(html)
+                if link not in known_links
+            ]
+            logger.info(f"{len(links)} links novos")
+            if not links:
+                continue
 
-                allowed_prefix = 'https://www.zapimoveis.com.br/imovel/'
-
-                if link and link.startswith(allowed_prefix):
-                    data.append(
-                        {
-                            "link": link,
-                            "tipo": tipo,
-                            "modo": modo,
-                            "created_dt": datetime.now().strftime(
-                                "%d-%m-%Y %H:%M:%S"
-                            )
-                        }
-                    )
-
+            known_links.update(links)
             logger.info("Insert documents in collection 'links_imoveis'")
             mongo.insert_documents(
-                documents=data,
+                documents=[
+                    {
+                        "link": link,
+                        "tipo": tipo,
+                        "modo": modo,
+                        "created_dt": datetime.now().strftime(
+                            "%d-%m-%Y %H:%M:%S"
+                        )
+                    }
+                    for link in links
+                ],
                 collection='links_imoveis'
             )
 
-            sleep(2)
-
-            scraper.close_driver()
-
-            sleep(2)
+        sleep(PAUSE_SECONDS)
 
 
 if __name__ == '__main__':
