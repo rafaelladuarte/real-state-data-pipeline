@@ -108,3 +108,25 @@ def test_rate_limiter_spaces_requests_across_threads(db):
     # Intervalo global respeitado (tolerância para a latência das chamadas)
     assert min(gaps) >= interval * 0.7
     assert times[-1] - times[0] >= interval * (calls - 1) * 0.8
+
+
+@pytestmark_mongo
+def test_requeue_stale_resets_only_old_or_unmarked_links(db):
+    old = datetime.now(timezone.utc) - timedelta(days=10)
+    recent = datetime.now(timezone.utc) - timedelta(days=1)
+    base = {"scraper": True, "html_key": "k", "parsed": True}
+    db.links.insert_many([
+        {"link": "old", "collected_at": old, **base},
+        {"link": "recent", "collected_at": recent, **base},
+        {"link": "legacy", **base},                 # coletado antes do D4
+        {"link": "pending"},                        # nunca coletado
+    ])
+    queue = LinkQueue(URI, "links", TEST_DB)
+
+    assert queue.requeue_stale(7) == 2
+    assert db.links.find_one({"link": "old"}).get("scraper") is None
+    assert db.links.find_one({"link": "legacy"}).get("html_key") is None
+    assert db.links.find_one({"link": "recent"})["scraper"] is True
+    claimed = {queue.claim("w")["link"] for _ in range(3)}
+    assert claimed == {"old", "legacy", "pending"}
+    assert queue.claim("w") is None  # "recent" continua coletado

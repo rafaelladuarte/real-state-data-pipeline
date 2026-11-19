@@ -26,7 +26,8 @@ def treat_data_to_postgres():
 
     list_collection_names = [
         "treat_imoveis",
-        "treat_imobiliarias"
+        "treat_imobiliarias",
+        "snapshots_imoveis",
     ]
     for collection_name in list_collection_names:
         logger.info(f"Get documents in collection '{collection_name}'")
@@ -34,6 +35,10 @@ def treat_data_to_postgres():
             query={},
             collection=collection_name
         )
+
+        if not documents:
+            logger.warning(f"Coleção '{collection_name}' vazia; staging ignorado")
+            continue
 
         table_name = "_" + collection_name
 

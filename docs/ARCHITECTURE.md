@@ -73,10 +73,19 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - **Consequência para a escala:** o custo por anúncio (~1,9 s de busca + 3 s de pausa ≈ 5 s) vem do navegador e da pausa de cortesia, não de CPU. O ganho vem de paralelizar (D2) **respeitando um limite global de requisições**, não de trocar o cliente. Com N workers e pausa de 3 s cada, a taxa fica em torno de N/5 anúncios por segundo; o N máximo aceitável depende do limite de requisições por minuto definido abaixo.
 - **Reaproveitamento:** reduzir o custo do navegador (reusar a sessão em lotes, hoje um Chrome novo por página) continua possível, mas na primeira tentativa a sessão reaproveitada expirou na página 2, então precisa ser medido.
 
-### D4. Histórico: snapshots por coleta + primeira/última aparição
-- **Problema:** o hash descarta anúncios já vistos, então mudanças de preço se perdem.
-- **Decisão:** tabela de snapshots (anúncio, preço, data da coleta) e colunas de primeira/última aparição; anúncios que somem são marcados como inativos.
-- **Habilita:** variação de preço e tempo médio no mercado.
+### D4. Histórico: snapshots por coleta + ciclo de vida do anúncio ✅
+- **Problema:** o hash do anúncio (tipo, modo, área, quartos, banheiros, vagas, bairro, data de criação) identifica o imóvel e ignora o preço; por isso um anúncio recoletado era descartado e mudanças de preço se perdiam.
+- **Decisão e implementação:**
+  - Cada observação gera um **snapshot** (`snapshots_imoveis` no Mongo, chave `hash + data de coleta`, índice único) mesmo quando o anúncio já está tratado; anúncios conhecidos não refazem imagens nem entram de novo em `treat_imoveis`.
+  - No Postgres, `imovel_snapshot (id_imovel, data_coleta, preco, condominio, iptu)`; o **preço atual** de `imovel` vem do snapshot mais recente (fonte da verdade).
+  - View `imovel_ciclo_vida`: primeira/última coleta, nº de coletas, preço inicial/atual, variação (%), mudanças de preço, **dias no mercado** (última coleta − data de criação do anúncio) e `visto_na_ultima_coleta`.
+  - **Recoleta:** a task `requeue_stale_links` (primeira da DAG `extraction`) reenfileira links coletados há mais de `RECRAWL_AFTER_DAYS` (7) dias; links coletados antes do D4 contam como antigos.
+  - `python scripts/etl/treatment/snapshots.py` cria o primeiro snapshot dos anúncios tratados antes do D4 (idempotente).
+  - App: tempo mediano no mercado por bairro e variação de preço entre coletas.
+- **O que já aparece com 1 coleta:** tempo no mercado (vem da data de criação do anúncio no site; mediana de ~33 dias para casas e ~38 para apartamentos na amostra). **Variação de preço** só aparece a partir da 2ª coleta em outro dia; até lá o app informa isso em vez de mostrar uma tela vazia.
+- **Cuidado de interpretação:** `visto_na_ultima_coleta = falso` não significa que o anúncio saiu do ar, porque a coleta cobre só parte das páginas. Detectar remoção de verdade exigiria varrer toda a busca.
+- **Bugs corrigidos no caminho:** `insert_hash_documents` quebrava com lista vazia (exatamente o caso de uma recoleta sem anúncios novos) e logava `ERROR` com 0 erros.
+- **Não validado com dados reais ainda:** a mudança de preço foi testada com dados sintéticos (testes de integração); a recoleta real em outro dia ainda não aconteceu.
 
 ### D5. Carga no Postgres: staging completo + upsert idempotente ✅
 - **Problema:** os `INSERT` não eram reexecutáveis (falhavam em tipos/modos já existentes e duplicavam endereços), os joins por texto de endereço eram ambíguos, imóveis com tipo novo eram descartados em silêncio pelo `INNER JOIN`, e `update.py` estava quebrado.
@@ -105,7 +114,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 2. ~~**D1** — armazenar HTML bruto e separar o parsing~~ ✅ concluído.
 3. ~~**D2** — fila com reserva atômica e workers em paralelo~~ ✅ concluído (benchmark em D2).
 4. ~~**Carga idempotente** — upsert nas dimensões e no fato~~ ✅ concluído (ver D5).
-5. **D4** — snapshots de preço e telas no app.
+5. ~~**D4** — snapshots de preço e telas no app~~ ✅ concluído (ver D4; a variação real depende de uma 2ª coleta em outro dia).
 6. **Qualidade e alertas**, depois **CI e subida em um comando**.
 7. Só então **ampliar a cobertura** (mais páginas, venda e demais tipos).
 

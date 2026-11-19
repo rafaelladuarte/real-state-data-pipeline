@@ -58,7 +58,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 
 ## P1 — Qualidade e análise
 
-### 5. Histórico de preço e ciclo de vida do anúncio — M
+### 5. ✅ Histórico de preço e ciclo de vida do anúncio — M
 **Por quê:** o hash descarta mudanças; "variação de preço" e "tempo no mercado" são as análises mais valiosas.
 **Aceite:**
 - Tabela de snapshots por anúncio (preço, data da coleta).

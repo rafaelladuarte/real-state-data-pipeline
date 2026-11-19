@@ -59,10 +59,17 @@ def uri():
     admin.dispose()
 
 
-def stage(uri, imoveis, agencies=(AGENCY,)):
+def snap(hash_, preco, data):
+    return {"hash": hash_, "snapshot_key": f"{hash_}_{data}", "preco": preco,
+            "condominio": None, "iptu": None, "data_coleta": data}
+
+
+def stage(uri, imoveis, agencies=(AGENCY,), snapshots=()):
     db = PostgreDB(uri)
     db.post_dataframe("_treat_imoveis", imoveis, "replace")
     db.post_dataframe("_treat_imobiliarias", list(agencies), "replace")
+    if snapshots:
+        db.post_dataframe("_snapshots_imoveis", list(snapshots), "replace")
 
 
 def scalar(uri, sql):
@@ -91,16 +98,40 @@ def test_shared_address_is_stored_once(uri):
     ) == 1
 
 
-def test_changed_price_is_updated_not_duplicated(uri):
-    stage(uri, [imovel("h1", 1000)])
+def test_price_comes_from_latest_snapshot_without_duplicating(uri):
+    stage(uri, [imovel("h1", 1000)], snapshots=[snap("h1", 1000, "01/11/2026")])
     build_model(uri)
-    stage(uri, [imovel("h1", 1500), imovel("h3", 3000, "Rua C, 1 - Centro, Uberlândia - MG")])
+    # 2ª coleta: o hash do anúncio é o mesmo, só o preço mudou
+    stage(uri, [imovel("h1", 1000)], snapshots=[
+        snap("h1", 1000, "01/11/2026"), snap("h1", 1500, "08/11/2026"),
+    ])
     build_model(uri)
+    build_model(uri)  # reexecutar não altera nada
 
-    assert scalar(uri, "SELECT count(*) FROM imovel") == 2
+    assert scalar(uri, "SELECT count(*) FROM imovel") == 1
+    assert scalar(uri, "SELECT count(*) FROM imovel_snapshot") == 2
     assert scalar(uri, "SELECT preco FROM imovel WHERE id_imovel = 'h1'") == 1500
     # triggers recalculam custo/faixa também no update
     assert scalar(uri, "SELECT faixa_area FROM imovel WHERE id_imovel = 'h1'") == "51-100m²"
+
+
+def test_lifecycle_view_tracks_price_change_and_time_on_market(uri):
+    stage(uri, [imovel("h1", 1000), imovel("h2", 2000, "Rua B, 5 - Centro, Uberlândia - MG")],
+          snapshots=[
+              snap("h1", 1000, "01/11/2026"), snap("h1", 1500, "08/11/2026"),
+              snap("h2", 2000, "01/11/2026"),  # não apareceu na última coleta
+          ])
+    build_model(uri)
+
+    row = create_engine(uri).connect().execute(text(
+        "SELECT * FROM imovel_ciclo_vida WHERE id_imovel = 'h1'"
+    )).mappings().one()
+    assert row["coletas"] == 2 and row["mudancas_preco"] == 1
+    assert row["preco_inicial"] == 1000 and row["preco_atual"] == 1500
+    assert float(row["variacao_pct"]) == 50.0
+    assert row["dias_no_mercado"] == 38  # 08/11/2026 - criado em 01/10/2026
+    assert row["visto_na_ultima_coleta"] is True
+    assert scalar(uri, "SELECT visto_na_ultima_coleta FROM imovel_ciclo_vida WHERE id_imovel = 'h2'") is False
 
 
 def test_new_type_from_scraping_is_kept(uri):

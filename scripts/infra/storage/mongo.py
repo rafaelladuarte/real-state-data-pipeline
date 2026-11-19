@@ -30,6 +30,9 @@ class MongoDB:
         documents: list,
         collection: str
     ) -> None:
+        if not documents:
+            return
+
         client = MongoClient(self._uri)
         coll = client["real_state"][collection]
 
@@ -52,7 +55,10 @@ class MongoDB:
                 for err in e.details['writeErrors']
                 if err['code'] != 11000
             ]
-            logger.error(f"- Documents ignored for other errors: {len(other_errors)}")
+            if other_errors:
+                logger.error(
+                    f"- Documents ignored for other errors: {len(other_errors)}"
+                )
 
     def get_documents(
         self,
@@ -155,6 +161,13 @@ class MongoDB:
         client.close()
 
         return data
+
+    def distinct_values(self, field: str, collection: str) -> list:
+        client = MongoClient(self._uri)
+        try:
+            return client['real_state'][collection].distinct(field)
+        finally:
+            client.close()
 
     def list_collection_names(self) -> list[str]:
         client = MongoClient(self._uri)

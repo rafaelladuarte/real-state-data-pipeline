@@ -65,10 +65,28 @@ CREATE TABLE IF NOT EXISTS "imovel" (
   FOREIGN KEY ("id_modo_imovel") REFERENCES "modo_imovel" ("id_modo")
 );
 
+-- Histórico: uma observação de preço por imóvel e data de coleta;
+CREATE TABLE IF NOT EXISTS "imovel_snapshot" (
+  "id_imovel" TEXT NOT NULL,
+  "data_coleta" DATE NOT NULL,
+  "preco" INT NOT NULL,
+  "condominio" INT,
+  "iptu" INT,
+  PRIMARY KEY ("id_imovel", "data_coleta"),
+  FOREIGN KEY ("id_imovel") REFERENCES "imovel" ("id_imovel")
+);
+
+-- Staging dos snapshots (recriado pela migração; existe vazio para não quebrar o insert);
+CREATE TABLE IF NOT EXISTS public._snapshots_imoveis (
+  hash TEXT, snapshot_key TEXT, preco DOUBLE PRECISION,
+  condominio DOUBLE PRECISION, iptu DOUBLE PRECISION, data_coleta TEXT
+);
+
 -- Índices sugeridos para melhorar o desempenho;
 CREATE INDEX IF NOT EXISTS idx_endereco_cidade ON "endereco" ("bairro");
 CREATE INDEX IF NOT EXISTS idx_imobiliaria_nome ON "imobiliaria" ("nome_imobiliaria");
 CREATE INDEX IF NOT EXISTS idx_imovel_preco ON "imovel" ("preco");
+CREATE INDEX IF NOT EXISTS idx_snapshot_data ON "imovel_snapshot" ("data_coleta");
 
 -- Endereço único: vários imóveis do mesmo endereço compartilham uma linha
 -- (necessário para o upsert e para os joins por texto do insert);

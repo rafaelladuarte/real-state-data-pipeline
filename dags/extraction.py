@@ -22,6 +22,8 @@ ETL_ENV = {
     "S3_SECRET_KEY": "{{ var.value.S3_SECRET_KEY }}",
     # Intervalo mínimo GLOBAL entre requisições (somando todos os workers)
     "MIN_INTERVAL_SECONDS": os.getenv("MIN_INTERVAL_SECONDS", "1.25"),
+    # Links coletados há mais de N dias voltam à fila (histórico de preço)
+    "RECRAWL_AFTER_DAYS": os.getenv("RECRAWL_AFTER_DAYS", "7"),
 }
 # Quantidade de workers de coleta em paralelo
 SCRAPER_WORKERS = int(os.getenv("SCRAPER_WORKERS", "3"))
@@ -34,6 +36,18 @@ with DAG(
     schedule_interval="0 0 * * *",
     catchup=False,
 ) as dag:
+    requeue = DockerOperator(
+        task_id="requeue_stale_links",
+        image="etl-scripts",
+        api_version="auto",
+        auto_remove=True,
+        command="python3 scripts/etl/extraction/requeue.py",
+        docker_url="unix://var/run/docker.sock",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
+        mount_tmp_dir=False
+    )
+
     links = DockerOperator(
         task_id="get_links_property",
         image="etl-scripts",
@@ -95,4 +109,4 @@ with DAG(
         deferrable=True,
     )
 
-    links >> property >> parse_property >> real_state >> start_treatment
+    requeue >> links >> property >> parse_property >> real_state >> start_treatment

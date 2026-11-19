@@ -7,6 +7,7 @@ from scripts.utility.operator import (
     convert_format_data
 )
 from scripts.etl.treatment.images import treatment_images
+from scripts.etl.treatment.snapshots import COLLECTION, build_snapshot
 
 from collections import defaultdict
 from datetime import datetime
@@ -24,6 +25,8 @@ def treat_property():
         uri=get_secret_value('MONGO_URI')
     )
     mongo.create_hash_index("treat_imoveis", "hash")
+    mongo.create_hash_index(COLLECTION, "snapshot_key")
+    known_hashes = set(mongo.distinct_values("hash", "treat_imoveis"))
 
     b = 0
     while True:
@@ -44,6 +47,7 @@ def treat_property():
             break
 
         data = []
+        snapshots = []
         list_id_error = defaultdict(list)
         list_id = []
 
@@ -68,6 +72,20 @@ def treat_property():
 
                 unique_hash = hashlib.sha256(token_byte).hexdigest()
 
+                price = extract_number(doc["preco"])
+                condo = extract_number(doc["condominio"])
+                iptu = extract_number(doc["iptu"])
+
+                # Toda observação gera um snapshot de preço (histórico)
+                snapshots.append(build_snapshot(
+                    unique_hash, price, condo, iptu, data_coleta
+                ))
+
+                if unique_hash in known_hashes:
+                    # Anúncio já tratado: só o snapshot interessa
+                    continue
+                known_hashes.add(unique_hash)
+
                 images = treatment_images(doc["original_imagens"], unique_hash)
 
                 data.append(
@@ -76,9 +94,9 @@ def treat_property():
                         "tipo_imovel": doc["tipo_imovel"],
                         "modo_imovel": doc["modo_imovel"],
                         "descricao": doc["descricao"],
-                        "preco": extract_number(doc["preco"]),
-                        "condominio": extract_number(doc["condominio"]),
-                        "iptu": extract_number(doc["iptu"]),
+                        "preco": price,
+                        "condominio": condo,
+                        "iptu": iptu,
                         "area": extract_number(doc["area"]),
                         "quartos": extract_number(doc["quartos"]),
                         "banheiro": extract_number(doc["banheiro"]),
@@ -104,6 +122,12 @@ def treat_property():
                 logger.info(f"- {doc["titulo_anuncio"]}")
             except Exception as e:
                 list_id_error[str(e)].append(doc['_id'])
+
+        logger.info(f"Insert {len(snapshots)} snapshots in '{COLLECTION}'")
+        mongo.insert_hash_documents(
+            documents=snapshots,
+            collection=COLLECTION
+        )
 
         logger.info("Insert documents in collection 'treat_imoveis'")
         mongo.insert_hash_documents(

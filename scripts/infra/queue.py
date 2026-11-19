@@ -58,11 +58,36 @@ class LinkQueue:
                 "$set": {
                     "scraper": True,
                     "html_key": html_key,
+                    "collected_at": _now(),
                     "updated_dt": _now().strftime("%d-%m-%Y %H:%M:%S"),
                 },
                 "$unset": {"lease_until": "", "lease_owner": "", "error": ""},
             },
         )
+
+    def requeue_stale(self, older_than_days: int) -> int:
+        """Reenfileira links coletados há mais de N dias (nova observação).
+
+        Links sem `collected_at` (coletados antes do D4) contam como antigos.
+        Limpa o estado da coleta anterior para que o worker busque de novo.
+        """
+        limit = _now() - timedelta(days=older_than_days)
+        result = self._coll.update_many(
+            {
+                "scraper": True,
+                "html_key": {"$exists": True},
+                "$or": [
+                    {"collected_at": {"$lt": limit}},
+                    {"collected_at": {"$exists": False}},
+                ],
+            },
+            {"$unset": {
+                "scraper": "", "html_key": "", "parsed": "", "attempts": "",
+                "error": "", "parse_error": "", "lease_until": "",
+                "lease_owner": "",
+            }},
+        )
+        return result.modified_count
 
     def fail(self, doc: dict, error: str, max_attempts: int = 3) -> bool:
         """Registra a falha. Devolve True se esgotou as tentativas."""

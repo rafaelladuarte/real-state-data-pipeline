@@ -171,11 +171,40 @@ INNER JOIN
 INNER JOIN 
     public.modo_imovel E ON LOWER(A.modo_imovel) = LOWER(E.modo)
 ON CONFLICT (id_imovel) DO UPDATE SET
-    preco = EXCLUDED.preco,
     descricao_imovel = EXCLUDED.descricao_imovel,
     imagens_imovel = EXCLUDED.imagens_imovel,
-    data_atualizacao_imovel = EXCLUDED.data_atualizacao_imovel,
-    data_coleta_imovel = EXCLUDED.data_coleta_imovel
-WHERE (imovel.preco, imovel.descricao_imovel, imovel.data_atualizacao_imovel)
+    data_atualizacao_imovel = EXCLUDED.data_atualizacao_imovel
+WHERE (imovel.descricao_imovel, imovel.data_atualizacao_imovel)
     IS DISTINCT FROM
-    (EXCLUDED.preco, EXCLUDED.descricao_imovel, EXCLUDED.data_atualizacao_imovel);
+    (EXCLUDED.descricao_imovel, EXCLUDED.data_atualizacao_imovel);
+
+-- Histórico de preço: uma linha por imóvel e data de coleta;
+INSERT INTO public.imovel_snapshot (
+    id_imovel, data_coleta, preco, condominio, iptu
+)
+SELECT
+    S.hash,
+    TO_DATE(S.data_coleta, 'DD/MM/YYYY'),
+    S.preco::INTEGER,
+    S.condominio::INTEGER,
+    S.iptu::INTEGER
+FROM public._snapshots_imoveis S
+INNER JOIN public.imovel I ON I.id_imovel = S.hash
+WHERE S.preco IS NOT NULL
+ON CONFLICT (id_imovel, data_coleta) DO UPDATE SET
+    preco = EXCLUDED.preco,
+    condominio = EXCLUDED.condominio,
+    iptu = EXCLUDED.iptu;
+
+-- O preço atual do imóvel é o do snapshot mais recente (fonte da verdade);
+UPDATE public.imovel I
+SET preco = L.preco,
+    data_coleta_imovel = L.data_coleta
+FROM (
+    SELECT DISTINCT ON (id_imovel) id_imovel, preco, data_coleta
+    FROM public.imovel_snapshot
+    ORDER BY id_imovel, data_coleta DESC
+) L
+WHERE I.id_imovel = L.id_imovel
+  AND (I.preco IS DISTINCT FROM L.preco
+       OR I.data_coleta_imovel IS DISTINCT FROM L.data_coleta);

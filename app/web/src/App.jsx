@@ -113,10 +113,45 @@ function Imoveis() {
   );
 }
 
+function VariacaoPreco() {
+  const state = useApi("/api/variacao-preco");
+  return (
+    <section className="card full">
+      <h2>Variação de preço entre coletas</h2>
+      {state.error ? <p className="msg">Falha ao carregar.</p>
+        : !state.data ? <p className="msg">Carregando…</p>
+        : state.data.coletas.length < 2 ? (
+          <p className="msg">
+            Há {state.data.coletas.length} coleta(s) até agora
+            {state.data.coletas[0] ? ` (${state.data.coletas[0].data})` : ""}. A variação de preço aparece a
+            partir da 2ª coleta, que reenfileira os anúncios coletados há mais de 7 dias.
+          </p>
+        ) : state.data.variacoes.length === 0 ? (
+          <p className="msg">Nenhum anúncio mudou de preço entre as {state.data.coletas.length} coletas.</p>
+        ) : (
+          <div className="scroll">
+            <table>
+              <thead><tr><th>Título</th><th>Bairro</th><th>Antes</th><th>Agora</th><th>Variação</th></tr></thead>
+              <tbody>
+                {state.data.variacoes.map((v) => (
+                  <tr key={v.id_imovel}>
+                    <td>{v.titulo}</td><td>{v.bairro}</td><td>{brl(v.preco_inicial)}</td>
+                    <td>{brl(v.preco_atual)}</td><td>{v.variacao_pct > 0 ? "+" : ""}{v.variacao_pct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+    </section>
+  );
+}
+
 export default function App() {
   const bairros = useApi("/api/bairros");
   const resumo = useApi("/api/resumo");
   const dispersao = useApi("/api/dispersao");
+  const tempo = useApi("/api/tempo-mercado");
   return (
     <>
       <header>
@@ -144,6 +179,10 @@ export default function App() {
             </ResponsiveContainer>
           )}
         </Card>
+        <Card title="Tempo mediano no mercado por bairro (dias)" state={tempo}>
+          {(d) => <HBar data={d} x="dias_mediana" y="bairro" fmt={(v) => `${v} dias`} />}
+        </Card>
+        <VariacaoPreco />
         <Imoveis />
       </main>
     </>

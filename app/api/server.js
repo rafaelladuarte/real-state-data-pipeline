@@ -58,6 +58,39 @@ route("/api/preco-medio", (req) => {
   );
 });
 
+// Mediana de dias entre a criação do anúncio e a última coleta (outliers pesam menos)
+route("/api/tempo-mercado", (req) => {
+  const { modo, tipo } = req.query;
+  return q(
+    `SELECT bairro,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dias_no_mercado))::int AS dias_mediana,
+            COUNT(*)::int AS quantidade
+     FROM imovel_ciclo_vida
+     WHERE bairro IS NOT NULL AND dias_no_mercado IS NOT NULL AND dias_no_mercado >= 0
+       AND ($1::text IS NULL OR modo = $1)
+       AND ($2::text IS NULL OR tipo = $2)
+     GROUP BY bairro
+     HAVING COUNT(*) >= 3
+     ORDER BY dias_mediana DESC LIMIT 15`,
+    [modo || null, tipo || null]
+  );
+});
+
+// Histórico de preço: datas de coleta e anúncios com variação
+route("/api/variacao-preco", async () => {
+  const [coletas, variacoes] = await Promise.all([
+    q(`SELECT TO_CHAR(data_coleta, 'DD/MM/YYYY') AS data, COUNT(*)::int AS quantidade
+       FROM imovel_snapshot GROUP BY data_coleta ORDER BY data_coleta`),
+    q(`SELECT c.id_imovel, i.titulo_imovel AS titulo, c.bairro, c.tipo,
+               c.preco_inicial, c.preco_atual, c.variacao_pct::float AS variacao_pct,
+               c.mudancas_preco::int AS mudancas
+        FROM imovel_ciclo_vida c JOIN imovel i ON i.id_imovel = c.id_imovel
+        WHERE c.mudancas_preco > 0
+        ORDER BY ABS(c.variacao_pct) DESC LIMIT 20`),
+  ]);
+  return { coletas, variacoes };
+});
+
 route("/api/preco-modo-tipo", () =>
   q("SELECT tipo, modo, media_preco::float AS media_preco FROM media_preco_modo_tipo")
 );
