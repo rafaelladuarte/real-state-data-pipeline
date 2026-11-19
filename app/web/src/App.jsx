@@ -38,7 +38,7 @@ function HBar({ data, x, y, fmt }) {
     <ResponsiveContainer width="100%" height={Math.max(220, data.length * 26)}>
       <BarChart data={data} layout="vertical" margin={{ left: 40 }}>
         <XAxis type="number" tickFormatter={fmt} />
-        <YAxis type="category" dataKey={y} width={110} />
+        <YAxis type="category" dataKey={y} width={120} interval={0} tick={{ fontSize: 12 }} />
         <Tooltip formatter={fmt} />
         <Bar dataKey={x} fill={ACCENT} />
       </BarChart>
@@ -166,6 +166,9 @@ export default function App() {
         <Card title="Distribuição por tipo" state={{ ...resumo, data: resumo.data?.tipos }}>
           {(d) => <HBar data={d} x="quantidade" y="nome" />}
         </Card>
+        <Card title="Tempo mediano no mercado por bairro (dias)" state={tempo}>
+          {(d) => <HBar data={d} x="dias_mediana" y="bairro" fmt={(v) => `${v} dias`} />}
+        </Card>
         <Card title="Preço × área (m²)" state={dispersao} className="full">
           {(d) => (
             <ResponsiveContainer width="100%" height={320}>
@@ -178,9 +181,6 @@ export default function App() {
               </ScatterChart>
             </ResponsiveContainer>
           )}
-        </Card>
-        <Card title="Tempo mediano no mercado por bairro (dias)" state={tempo}>
-          {(d) => <HBar data={d} x="dias_mediana" y="bairro" fmt={(v) => `${v} dias`} />}
         </Card>
         <VariacaoPreco />
         <Imoveis />

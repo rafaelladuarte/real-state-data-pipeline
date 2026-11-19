@@ -161,3 +161,7 @@ app/web/dist/
 
 # Dependências da imagem de ETL
 !scripts/requirements.txt
+
+# HTMLs que fazem parte do código (a regra *.html acima é para coletas locais)
+!app/web/index.html
+!tests/fixtures/*.html

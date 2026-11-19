@@ -9,7 +9,6 @@ psycopg2-binary
 sqlalchemy
 sqlalchemy-utils
 unidecode
-br-nome-gen
 requests
 pydrive
 google-api-python-client

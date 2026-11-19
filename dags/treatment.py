@@ -1,6 +1,7 @@
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow import DAG
+from alerting import notify_failure
 
 from datetime import datetime
 
@@ -14,6 +15,7 @@ ETL_ENV = {
 
 with DAG(
     dag_id="treatment",
+    default_args={"on_failure_callback": notify_failure},
     start_date=datetime(2024, 1, 1),
     # schedule="0 0 * * *"
     schedule_interval=None,

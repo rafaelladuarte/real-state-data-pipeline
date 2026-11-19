@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+
+  test:
+    name: Testes (pytest, com Mongo e Postgres)
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7.0
+        ports: ["27017:27017"]
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MONGO_TEST_URI: mongodb://localhost:27017
+      POSTGRES_TEST_URI: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+      - run: pip install -r scripts/requirements.txt pytest
+      - run: pytest -q
+
+  app:
+    name: App (build do frontend e checagem da API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Frontend
+        working-directory: app/web
+        run: |
+          npm ci
+          npm run build
+      - name: API
+        working-directory: app/api
+        run: |
+          npm ci
+          node --check server.js
+
+  docker:
+    name: Imagem de ETL (build e teste rápido)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t etl-scripts scripts
+      - name: Chrome e chromedriver na mesma versão, e imports principais
+        run: |
+          docker run --rm etl-scripts bash -c '
+            test "$(google-chrome --version | grep -oE "[0-9]+" | head -1)" = \
+                 "$(chromedriver --version | grep -oE "[0-9]+" | head -1)"
+            python -c "
+          from scripts.etl.extraction.parsers import parse_property
+          from scripts.etl.treatment.property import treat_property
+          from scripts.etl.load.model import build_model
+          print(\"imports ok\")"'

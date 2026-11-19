@@ -1,9 +1,15 @@
-"""Parsing dos anúncios a partir do HTML guardado no MinIO.
+"""Parsing dos anúncios a partir do HTML guardado no storage.
 
 Gera a coleção raw_imoveis. Com REPROCESS=true reprocessa todos os HTMLs
 (útil depois de mudar o parser), substituindo os documentos brutos do anúncio.
+
+Controle de qualidade: a taxa de campos vazios e de erros é avaliada ANTES de
+gravar. Se o parser estiver quebrado (ex.: o site mudou), a execução falha e
+nada é gravado nem marcado como processado; depois de corrigir o parser, basta
+rodar de novo sobre o mesmo HTML.
 """
 from scripts.etl.extraction.parsers import parse_property
+from scripts.etl.quality import check_quality, raise_if_violated
 from scripts.infra.security.secrets import get_secret_value
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.storage.object_store import ObjectStore, ad_id_from_url
@@ -36,61 +42,74 @@ def parse_stored_property(reprocess: bool | None = None):
 
     docs = mongo.get_documents(query=query, collection='links_imoveis')
     logger.info(f"{len(docs)} HTMLs para processar (reprocess={reprocess})")
+    if not docs:
+        return
 
-    for start in range(0, len(docs), BATCH_SIZE):
-        data, list_id = [], []
-        list_id_error = defaultdict(list)
+    parsed_items = []  # (link_doc, registro bruto)
+    list_id_error = defaultdict(list)
 
-        for doc in docs[start:start + BATCH_SIZE]:
-            try:
-                html = store.get_html(doc["html_key"])
-                parsed = parse_property(html)
+    for doc in docs:
+        try:
+            parsed = parse_property(store.get_html(doc["html_key"]))
 
-                if not parsed["titulo_anuncio"] or not parsed["preco"]:
-                    raise ValueError("anúncio sem título ou preço")
+            if not parsed["titulo_anuncio"] or not parsed["preco"]:
+                raise ValueError("anúncio sem título ou preço")
 
-                data.append({
-                    **parsed,
-                    "anuncio_id": ad_id_from_url(doc["link"]),
-                    "link": doc["link"],
-                    "html_key": doc["html_key"],
-                    "tipo_imovel": doc['tipo'],
-                    "modo_imovel": doc['modo'],
-                    # Telefone não é coletado (exigiria enviar contatos
-                    # fictícios ao formulário do site)
-                    "telefone": [],
-                    # Data em que o HTML foi coletado (pela chave)
-                    "data_coleta_imovel": _collected_at(doc),
-                })
-                list_id.append(doc["_id"])
-            except Exception as e:
-                logger.error(f"Erro ao processar {doc['html_key']}: {e}")
-                list_id_error[str(e)].append(doc["_id"])
+            parsed_items.append((doc, {
+                **parsed,
+                "anuncio_id": ad_id_from_url(doc["link"]),
+                "link": doc["link"],
+                "html_key": doc["html_key"],
+                "tipo_imovel": doc['tipo'],
+                "modo_imovel": doc['modo'],
+                # Telefone não é coletado (exigiria enviar contatos
+                # fictícios ao formulário do site)
+                "telefone": [],
+                # Data em que o HTML foi coletado (pela chave)
+                "data_coleta_imovel": _collected_at(doc),
+            }))
+        except Exception as e:
+            logger.error(f"Erro ao processar {doc['html_key']}: {e}")
+            list_id_error[str(e)].append(doc["_id"])
 
-        now = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+    # Qualidade antes de gravar: parser quebrado não contamina a camada bruta
+    n_errors = sum(len(ids) for ids in list_id_error.values())
+    report = check_quality([record for _, record in parsed_items], errors=n_errors)
+    mongo.insert_documents(
+        documents=[report.as_metrics("parse_property")], collection='run_metrics'
+    )
+    logger.info(
+        f"Qualidade: {report.total} ok, {report.errors} erros, "
+        f"nulos {({k: f'{v:.0%}' for k, v in report.null_rates.items() if v})}"
+    )
+    raise_if_violated(report, "parse_property")
 
-        if reprocess and data:
+    now = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+    for start in range(0, len(parsed_items), BATCH_SIZE):
+        batch = parsed_items[start:start + BATCH_SIZE]
+        data = [record for _, record in batch]
+
+        if reprocess:
             mongo.delete_documents(
                 query={"anuncio_id": {"$in": [d["anuncio_id"] for d in data]}},
                 collection='raw_imoveis'
             )
 
-        if data:
-            logger.info("Insert documents in collection 'raw_imoveis'")
-            mongo.insert_documents(documents=data, collection='raw_imoveis')
-            mongo.update_documents(
-                query={"_id": {"$in": list_id}},
-                set={"$set": {"parsed": True, "updated_dt": now}},
-                collection='links_imoveis'
-            )
+        logger.info("Insert documents in collection 'raw_imoveis'")
+        mongo.insert_documents(documents=data, collection='raw_imoveis')
+        mongo.update_documents(
+            query={"_id": {"$in": [link_doc["_id"] for link_doc, _ in batch]}},
+            set={"$set": {"parsed": True, "updated_dt": now}},
+            collection='links_imoveis'
+        )
 
-        for error_type, ids in list_id_error.items():
-            mongo.update_documents(
-                query={"_id": {"$in": ids}},
-                set={"$set": {"parsed": True, "parse_error": error_type,
-                              "updated_dt": now}},
-                collection='links_imoveis'
-            )
+    for error_type, ids in list_id_error.items():
+        mongo.update_documents(
+            query={"_id": {"$in": ids}},
+            set={"$set": {"parsed": True, "parse_error": error_type,
+                          "updated_dt": now}},
+            collection='links_imoveis'
+        )
 
 
 def _collected_at(doc: dict) -> str:

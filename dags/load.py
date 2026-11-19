@@ -1,5 +1,6 @@
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow import DAG
+from alerting import notify_failure
 
 from datetime import datetime
 
@@ -16,6 +17,7 @@ with DAG(
     default_args={
         'start_date': datetime(2024, 12, 1),
         'retries': 1,
+        'on_failure_callback': notify_failure,
     },
     schedule_interval=None,
     catchup=False,

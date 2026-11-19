@@ -1,6 +1,7 @@
 from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow import DAG
+from alerting import notify_failure
 
 from datetime import datetime
 
@@ -11,6 +12,7 @@ default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
     'retries': 1,
+    'on_failure_callback': notify_failure,
 }
 
 # Segredos vindos das Variables do Airflow (secrets backend em /opt/secrets)

@@ -7,12 +7,17 @@ compartilham um limite global de requisições (RateLimiter).
 Somente busca e armazena; o parsing é feito por parse_property.py.
 """
 from scripts.etl.extraction.scraper import WebScraper
+from scripts.etl.quality import check_error_rate, raise_if_violated
 from scripts.infra.queue import LinkQueue, RateLimiter
 from scripts.infra.security.secrets import get_secret_value
+from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.storage.object_store import (
     ObjectStore, ad_id_from_url, html_key
 )
 from scripts.utility.log import get_logger
+
+from datetime import datetime, UTC
+from time import monotonic
 
 import os
 import socket
@@ -33,6 +38,7 @@ def run_worker(worker_id: str, collection: str = "links_imoveis") -> dict:
     store = ObjectStore()
 
     stats = {"worker": worker_id, "ok": 0, "errors": 0}
+    started = monotonic()
     logger.info(f"Worker {worker_id} iniciado")
 
     while True:
@@ -58,7 +64,17 @@ def run_worker(worker_id: str, collection: str = "links_imoveis") -> dict:
                 f"({'desistiu' if final else 'nova tentativa depois'})"
             )
 
+    stats["duration_s"] = round(monotonic() - started, 1)
     logger.info(f"Worker {worker_id} finalizado: {stats}")
+
+    report = check_error_rate(stats["ok"], stats["errors"])
+    if stats["ok"] + stats["errors"]:
+        MongoDB(uri).insert_documents(
+            documents=[{**report.as_metrics("fetch"), **stats, "at": datetime.now(UTC)}],
+            collection='run_metrics',
+        )
+    # Muitos erros seguidos indicam bloqueio do site: falha a task para alertar
+    raise_if_violated(report, f"fetch {worker_id}")
     return stats
 
 
