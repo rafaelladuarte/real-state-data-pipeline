@@ -4,7 +4,11 @@ from unidecode import unidecode
 import locale
 import re
 
-locale.setlocale(locale.LC_TIME, 'pt_BR.utf8')
+try:
+    locale.setlocale(locale.LC_TIME, 'pt_BR.utf8')
+except locale.Error:
+    # Locale ausente (ex.: ambiente de testes); os formatos usados são numéricos
+    pass
 
 
 def convert_format_data(data_string):
