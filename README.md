@@ -8,6 +8,7 @@
   <img alt="MongoDB" src="https://img.shields.io/badge/MongoDB-7-47A248?style=for-the-badge&logo=mongodb&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black">
   <img alt="Status" src="https://img.shields.io/static/v1?label=Status&message=Concluido&color=green&style=for-the-badge">
+  <a href="https://github.com/rafaelladuarte/real_state_data_pipeline/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/rafaelladuarte/real_state_data_pipeline/ci.yml?style=for-the-badge&label=CI"></a>
 </p>
 
 <p align="center">
@@ -212,6 +213,14 @@ POSTGRES_TEST_URI="postgresql+psycopg2://username:password@localhost:5434/postgr
 pytest
 ```
 
+## Qualidade e observabilidade
+
+- **Controle de qualidade na coleta:** antes de gravar, o parsing mede a taxa de campos vazios (críticos até 5%, importantes até 30%) e de erros (até 20%). Se o parser quebrar, por exemplo porque o site mudou, a execução **falha sem gravar nada** nem marcar links como processados. Depois de corrigir o parser, basta rodar de novo sobre o HTML guardado. Os limites estão em [`scripts/etl/quality.py`](scripts/etl/quality.py).
+- **Bloqueio do site:** um worker com muitos erros seguidos também falha a task, em vez de seguir em silêncio.
+- **Métricas por execução:** cada etapa registra total, erros, taxas e violações na coleção `run_metrics` do Mongo.
+- **Alertas:** as DAGs usam `on_failure_callback` e enviam a falha para o webhook definido em `ALERT_WEBHOOK_URL` (formato Slack); sem a variável, só registram em log.
+- **CI (GitHub Actions):** lint com ruff, testes com Mongo e Postgres como serviços, build do frontend e build da imagem de ETL com um teste rápido dentro dela. O fluxo está em [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
 ## Configuração
 
 | Variável | Padrão | Uso |
@@ -224,6 +233,7 @@ pytest
 | `MAX_ATTEMPTS` | `3` | Tentativas por link antes de desistir |
 | `RECRAWL_AFTER_DAYS` | `7` | Idade a partir da qual um link é recoletado |
 | `REPROCESS` | `false` | Reparseia todo o HTML guardado |
+| `ALERT_WEBHOOK_URL` | vazio | Webhook para alertas de falha das DAGs |
 | `CRED_PATH`, `FOLDER_ID` | – | Opcionais: upload de imagens no Google Drive (sem eles, mantém as URLs originais) |
 
 ## Coleta responsável

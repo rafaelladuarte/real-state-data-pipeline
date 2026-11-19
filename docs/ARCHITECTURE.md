@@ -100,6 +100,15 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - **Limitação:** o hash do tratamento ignora o preço, então um anúncio recoletado com preço novo ainda é descartado na camada Mongo antes de chegar aqui; isso é resolvido pelo histórico (D4).
 - **Na DAG `load`:** `migrate_to_postgres → model_data`, ambos em `DockerOperator` (os caminhos antigos para `/opt/airflow/scr/...` não existiam). A DAG `treatment` já a dispara no fim.
 
+### D6. Qualidade, alertas e CI ✅
+- **Gate de qualidade** (`scripts/etl/quality.py`): o parsing avalia campos vazios e erros **antes de gravar**. Com o parser quebrado, nada entra em `raw_imoveis` e os links não são marcados como processados; corrigido o parser, a execução seguinte reprocessa o mesmo HTML (benefício direto da camada bruta, D1). Testado com um parser simulado como quebrado.
+- **Limites** (calibrados com os dados reais, em que os campos essenciais têm 0% de nulos): críticos ≤ 5%, importantes ≤ 30%, erros ≤ 20%, e só com amostra de pelo menos 10 itens.
+- **Bloqueio do site:** o worker de coleta também falha quando a taxa de erros passa do limite.
+- **Observabilidade:** coleção `run_metrics` com total, erros, taxas e violações por etapa.
+- **Alertas:** `on_failure_callback` das três DAGs envia a falha ao webhook de `ALERT_WEBHOOK_URL`; o envio nunca derruba a DAG.
+- **CI:** lint (ruff), pytest com Mongo e Postgres como serviços, build do frontend e build da imagem de ETL com teste rápido. Validado localmente a partir de um clone novo; o workflow em si ainda não rodou no GitHub.
+- **Achados no caminho:** `index.html` do app e os HTMLs de exemplo dos testes não estavam versionados (a regra `*.html` do `.gitignore` os escondia), o que quebraria o build e os testes de quem clonasse; o healthcheck do Mongo no compose usava o comando `mongo`, que não existe nas imagens atuais; e o limitador agora desconta metade da latência de ida e volta para acordar perto do slot reservado.
+
 ## Princípios
 
 - **Reprocessável:** qualquer camada pode ser reconstruída a partir da anterior.
@@ -115,7 +124,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 3. ~~**D2** — fila com reserva atômica e workers em paralelo~~ ✅ concluído (benchmark em D2).
 4. ~~**Carga idempotente** — upsert nas dimensões e no fato~~ ✅ concluído (ver D5).
 5. ~~**D4** — snapshots de preço e telas no app~~ ✅ concluído (ver D4; a variação real depende de uma 2ª coleta em outro dia).
-6. **Qualidade e alertas**, depois **CI e subida em um comando**.
+6. ~~**Qualidade e alertas**, depois **CI**~~ ✅ concluído (ver D6). Falta a **subida em um comando**.
 7. Só então **ampliar a cobertura** (mais páginas, venda e demais tipos).
 
 ## Pontos em aberto

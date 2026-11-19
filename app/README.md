@@ -18,5 +18,8 @@ cd app/web && npm install && npm run dev
 
 ## Endpoints
 
-`/api/resumo`, `/api/bairros`, `/api/preco-medio?modo=&tipo=`, `/api/preco-modo-tipo`,
-`/api/faixa-area`, `/api/dispersao`, `/api/filtros`, `/api/imoveis?modo=&tipo=&bairro=&quartos=`
+`/api/resumo`, `/api/bairros`, `/api/preco-medio?modo=&tipo=`, `/api/tempo-mercado?modo=&tipo=`,
+`/api/variacao-preco`, `/api/preco-modo-tipo`, `/api/faixa-area`, `/api/dispersao`, `/api/filtros`,
+`/api/imoveis?modo=&tipo=&bairro=&quartos=`
+
+Preço médio e tempo no mercado por bairro só consideram bairros com pelo menos 3 anúncios.

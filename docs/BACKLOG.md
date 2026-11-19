@@ -65,7 +65,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - Datas de primeira e última aparição.
 - Telas no app: variação de preço e tempo médio no mercado.
 
-### 6. Qualidade dos dados e alerta de quebra do scraper — M
+### 6. ✅ Qualidade dos dados e alerta de quebra do scraper — M
 **Por quê:** o scraper ficou quebrado desde jan/2025 sem nenhum aviso.
 **Aceite:**
 - Validação dos documentos coletados (pydantic ou similar).
@@ -90,7 +90,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 
 ## P2 — Engenharia e apresentação
 
-### 9. CI e subida em um comando — M
+### 9. CI e subida em um comando — M (CI ✅; falta a subida em um comando)
 **Aceite:**
 - GitHub Actions com lint (ruff), `pytest` e `docker build`.
 - `make up` (ou equivalente) sobe Postgres, Mongo, Airflow e o app.
