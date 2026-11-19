@@ -7,6 +7,7 @@ from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 
+import os
 from time import sleep
 
 
@@ -35,8 +36,10 @@ class WebScraper:
         # options.add_argument("--no-sandbox")
         # options.add_argument("--remote-debugging-port=9222")
 
+        # Driver fixo na imagem Docker (CHROMEDRIVER_PATH); fallback baixa via manager
+        driver_path = os.getenv("CHROMEDRIVER_PATH") or ChromeDriverManager().install()
         driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
+            service=Service(driver_path),
             options=options
         )
 

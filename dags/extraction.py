@@ -15,8 +15,8 @@ with DAG(
     dag_id="extraction",
     default_args=default_args,
     start_date=datetime(2024, 12, 10),
-    # schedule="0 0 * * *"
-    schedule_interval=None,
+    schedule_interval="0 0 * * *",
+    catchup=False,
 ) as dag:
     links = DockerOperator(
         task_id="get_links_property",
@@ -45,7 +45,7 @@ with DAG(
         image="etl-scripts",
         api_version="auto",
         auto_remove=True,
-        command="python3 scripts/etl/extraction/real_state.py",
+        command="python3 scripts/etl/extraction/real_estate.py",
         docker_url="unix://var/run/docker.sock",
         network_mode="bridge",
         mount_tmp_dir=False
@@ -58,5 +58,4 @@ with DAG(
         deferrable=True,
     )
 
-    links >> property >> real_state 
-    # >> start_treatment
+    links >> property >> real_state >> start_treatment

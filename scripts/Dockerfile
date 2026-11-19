@@ -28,6 +28,13 @@ RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.d
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+RUN CFT=https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json \
+    && URL=$(wget -qO- $CFT | python3 -c "import sys,json; d=json.load(sys.stdin)['channels']['Stable']['downloads']['chromedriver']; print([x['url'] for x in d if x['platform']=='linux64'][0])") \
+    && wget -q "$URL" -O /tmp/cd.zip && unzip -q /tmp/cd.zip -d /tmp \
+    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && rm -rf /tmp/cd.zip /tmp/chromedriver-linux64
+
+ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+
 RUN python -m venv /app/venv \
     && /app/venv/bin/pip install --upgrade pip \
     && /app/venv/bin/pip install --no-cache-dir --trusted-host pypi.python.org -r requirements.txt

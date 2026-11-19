@@ -27,7 +27,7 @@ Este projeto visa automatizar o processo de coleta e análise de dados de imóve
 
 ## Tecnologias Utilizadas
 
-- **Docker**: 
+- **Docker**: Containerização dos scripts de ETL (imagem `etl-scripts` com Chrome e dependências), executados pelo Airflow via `DockerOperator`.
 - **Python**: Linguagem principal para desenvolver os scripts de scraping e transformação de dados.
 - **Apache Airflow**: Orquestração e gerenciamento do pipeline de ETL.
 - **PostgreSQL/MongoDB**: Armazenamento dos dados transformados para consulta e análise.
