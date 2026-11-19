@@ -138,7 +138,7 @@ SELECT
         WHEN area::INTEGER BETWEEN 101 AND 150 THEN '101-150m²'
         WHEN area::INTEGER BETWEEN 151 AND 200 THEN '151-200m²'
         ELSE 'Acima de 200m²'
-    END AS faixa_area;
+    END AS faixa_area,
     TO_DATE(data_coleta_imovel, 'DD-MM-YYYY')
 FROM 
     public._treat_imoveis A
