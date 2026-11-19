@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from diagrams.custom import Custom
 from diagrams import Diagram, Cluster, Edge
 from diagrams.onprem.database import MongoDB
@@ -7,13 +9,15 @@ from diagrams.onprem.client import User, Client
 from diagrams.programming.language import Python
 from diagrams.programming.framework import React
 
+IMAGES = Path(__file__).resolve().parent.parent / "images"
+
 graph_attr = {
     "fontsize": "25",
 }
 
 with Diagram(
     "Diagram Real State Data Pipeline",
-    filename="diagram_real_state_data_pipeline",
+    filename=str(IMAGES / "diagram_real_state_data_pipeline"),
     show=False,
     graph_attr=graph_attr
 ):
@@ -33,7 +37,7 @@ with Diagram(
         with Cluster("Container ETL Scripts"):
             python_scraper = Python("1. Extraction")
             python_treatment = Python("2. Treatment")
-            sql = Custom("3. Load", "images/sql.png")
+            sql = Custom("3. Load", str(IMAGES / "sql.png"))
 
     dashboard = React("App Web\n(React + API Express)")
 
