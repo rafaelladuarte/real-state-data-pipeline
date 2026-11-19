@@ -11,10 +11,6 @@
   <a href="https://github.com/rafaelladuarte/real_state_data_pipeline/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/rafaelladuarte/real_state_data_pipeline/ci.yml?style=for-the-badge&label=CI"></a>
 </p>
 
-<p align="center">
-  <img src="docs/images/imoveis.jpeg" alt="Real Estate Data Pipeline">
-</p>
-
 Pipeline de dados **ponta a ponta** que coleta anúncios de imóveis de Uberlândia/MG, trata e modela os dados e os entrega em um app web interativo. O projeto de portfólio foca em **coletar em escala com responsabilidade**, **reprocessar sem recoletar** e **carregar de forma idempotente**.
 
 ## Destaques
