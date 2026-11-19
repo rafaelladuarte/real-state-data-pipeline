@@ -9,3 +9,7 @@ extend-exclude = ["node_modules", "scripts/dev_pipeline"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Modelos de HTML/CSS embutidos: linhas longas são esperadas
+"docs/diagrams/*" = ["E501"]

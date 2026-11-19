@@ -31,7 +31,10 @@ Pipeline de dados **ponta a ponta** que coleta anúncios de imóveis de Uberlân
 ## Arquitetura
 
 <p align="center">
-  <img src="docs/images/diagram_real_state_data_pipeline.png" alt="Diagrama da arquitetura">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/arquitetura-dark.png">
+    <img src="docs/images/arquitetura.png" alt="Diagrama da arquitetura: da coleta ao app, passando pelas camadas bronze, silver e gold">
+  </picture>
 </p>
 
 ```
@@ -49,6 +52,16 @@ Airflow ─▶ descoberta de links ─▶ fila (Mongo, reserva atômica)
 | Gold | PostgreSQL | Dimensões, fato `imovel`, histórico `imovel_snapshot` e views de análise |
 
 As decisões de arquitetura e as alternativas descartadas estão em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## A arquitetura funcionando
+
+Capturas das próprias ferramentas, com os dados reais da coleta de 19/11/2026: o HTML bruto no storage, as coleções e as métricas de qualidade no MongoDB, as tabelas e a view de ciclo de vida no PostgreSQL e a esteira rodando no terminal.
+
+<table>
+    <tr><td width="50%"><img src="docs/images/capturas/storage-s3.png" alt="HTML bruto no storage S3 (bronze)"></td><td width="50%"><img src="docs/images/capturas/mongo-colecoes.png" alt="Coleções do MongoDB (silver)"></td></tr>
+    <tr><td width="50%"><img src="docs/images/capturas/mongo-qualidade.png" alt="Métricas de qualidade no MongoDB"></td><td width="50%"><img src="docs/images/capturas/postgres-tabelas.png" alt="Tabelas e views no PostgreSQL (gold)"></td></tr>
+    <tr><td width="50%"><img src="docs/images/capturas/postgres-view.png" alt="View imovel_ciclo_vida"></td><td width="50%"><img src="docs/images/capturas/terminal-pipeline.png" alt="A esteira em execução"></td></tr>
+</table>
 
 ## Resultados medidos
 
@@ -99,7 +112,10 @@ Detalhes em [app/README.md](app/README.md).
 ## Modelo de dados
 
 <p align="center">
-  <img src="docs/images/diagram_er.png" alt="Diagrama entidade-relacionamento" width="700">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/modelo-de-dados-dark.png">
+    <img src="docs/images/modelo-de-dados.png" alt="Diagrama do modelo de dados no PostgreSQL">
+  </picture>
 </p>
 
 - **Dimensões:** `tipo_imovel`, `modo_imovel`, `endereco` (único por texto), `imobiliaria`.
@@ -274,6 +290,7 @@ pytest
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): arquitetura alvo, decisões, experimentos e limitações.
 - [docs/BACKLOG.md](docs/BACKLOG.md): melhorias em andamento e planejadas.
 - [app/README.md](app/README.md): app de visualização e endpoints da API.
+- `docs/diagrams/`: scripts que geram os diagramas (`build_diagrams.py`) e as capturas (`build_captures.py`) na mesma identidade visual do app.
 
 ## Autor
 
