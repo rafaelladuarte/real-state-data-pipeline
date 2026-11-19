@@ -9,12 +9,12 @@
 <img src="images/imoveis.jpeg">
 
 <p align="center">
-<img src="https://img.shields.io/static/v1?label=Status&message=Em_Andamento&color=orange&style=for-the-badge"/>
+<img src="https://img.shields.io/static/v1?label=Status&message=Concluido&color=green&style=for-the-badge"/>
 </p>
 
 ## Descrição do Projeto
 
-O **Real Estate Data Pipeline** é um projeto de portfólio voltado para a criação de um pipeline de ETL (Extração, Transformação e Carga) para coletar dados de imóveis à venda em sites de imobiliárias de Uberlândia-MG. O objetivo é organizar, transformar e carregar os dados em um banco de dados, permitindo sua visualização em um dashboard interativo no Power BI.
+O **Real Estate Data Pipeline** é um projeto de portfólio voltado para a criação de um pipeline de ETL (Extração, Transformação e Carga) para coletar dados de imóveis à venda em sites de imobiliárias de Uberlândia-MG. O objetivo é organizar, transformar e carregar os dados em um banco de dados, permitindo sua visualização em um app web interativo (React + API Express).
 
 ## Objetivo
 
@@ -22,16 +22,17 @@ Este projeto visa automatizar o processo de coleta e análise de dados de imóve
 
 - **Extrair** dados como preço, localização e características dos imóveis a partir de sites de imobiliárias.
 - **Transformar** os dados brutos por meio de limpeza e cálculos de insights (ex. preço médio por bairro, variação de preços por características).
-- **Carregar** os dados limpos e processados em um banco de dados (PostgreSQL ou MongoDB).
-- **Visualizar** os dados por meio de um dashboard interativo, facilitando a análise de tendências no mercado imobiliário.
+- **Carregar** os dados limpos e processados em bancos de dados: MongoDB (dados brutos) e PostgreSQL (dados tratados e modelados).
+- **Visualizar** os dados por meio de um app web interativo, facilitando a análise de tendências no mercado imobiliário.
 
 ## Tecnologias Utilizadas
 
 - **Docker**: Containerização dos scripts de ETL (imagem `etl-scripts` com Chrome e dependências), executados pelo Airflow via `DockerOperator`.
 - **Python**: Linguagem principal para desenvolver os scripts de scraping e transformação de dados.
 - **Apache Airflow**: Orquestração e gerenciamento do pipeline de ETL.
-- **PostgreSQL/MongoDB**: Armazenamento dos dados transformados para consulta e análise.
-- **Dash Plotly**: Visualização interativa dos dados e criação de dashboards.
+- **MongoDB**: Armazenamento dos dados brutos coletados pelo scraping.
+- **PostgreSQL**: Dados tratados, modelagem relacional, triggers, funções e views de análise.
+- **React + Recharts / Express**: App web para visualização interativa dos dados (pasta `app/`).
 - **Selenium**: Ferramentas para scraping de dados dos sites de imobiliárias.
 
 ## App de visualização
@@ -49,10 +50,10 @@ A pasta [`app/`](app/README.md) traz uma API Express e um frontend React que con
    - Cálculo de métricas como preço médio por bairro e análise de variações.
 
 3. **Carga de Dados**
-   - Armazenamento dos dados limpos em um banco de dados (PostgreSQL ou MongoDB).
+   - Dados brutos no MongoDB; dados limpos e modelados migrados para o PostgreSQL.
    
 4. **Visualização**
-   - Conexão com o banco de dados para gerar relatórios e dashboards no Power BI.
+   - API Express sobre as views do PostgreSQL e frontend React com gráficos e listagem filtrável.
    - Visualização de insights, como tendências de preços por localização.
 
 ## Cronograma de Execução
@@ -78,31 +79,20 @@ Lembrete:
 - ✅ Inserção dos dados modelados no banco de dados
 
 ### Parte 4
-- 🔁 Design e Implementação do Pipeline de ETL no Apache Airflow
-- 🔁 Realização de testes manuais do Pipeline de ETL via Interface Web do Apache Airflow
-- Monitoramento e Controle do Pipeline por meio de Logs
-- Definição de Agendamento Regular para Execução
+- ✅ Design e Implementação do Pipeline de ETL no Apache Airflow
+- ✅ Encadeamento extração → tratamento e agendamento diário
+- 🔁 Monitoramento e Controle do Pipeline por meio de Logs
 
 ### Parte 5
-- Implementação de funções para cálculo de insights
-- Criação de views para os dashboards
-- Criação de dashboards interativos
+- ✅ Funções, triggers e views para cálculo de insights
+- ✅ App web interativo (API Express + React)
 
 ### Parte 6
+- Testes automatizados dos parsers de tratamento
 - Revisão do pipeline e otimização
-- Ajustes nos dashboards do Power BI
 
 ### Parte 7
-- Documentação do projeto
-- Preparação do código e documentação para publicação
-
-### Parte 8
-- Revisão final
-- Gravação de Pitch Técnico
-- Publicação do projeto no GitHub
-
-### Parte 9
-- Coleta de feedback e ajustes finais
+- ✅ Documentação do projeto
 
 ## Contribuições
 
