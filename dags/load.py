@@ -1,22 +1,14 @@
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.docker.operators.docker import DockerOperator
 from airflow import DAG
 
 from datetime import datetime
 
 
-def treatment_file_sql(file_path):
-    with open(file_path, 'r') as file:
-        sql = file.read()
-
-    cmds_sql = [
-        cmd.strip()
-        for cmd in sql.split(';')
-        if cmd.strip() and not cmd.startswith('--')
-    ]
-
-    sql_treat = '; '.join(cmds_sql) + ';'
-
-    return sql_treat
+# Segredos vindos das Variables do Airflow (secrets backend em /opt/secrets)
+ETL_ENV = {
+    "MONGO_URI": "{{ var.value.MONGO_URI }}",
+    "POSTGRESQL_URI": "{{ var.value.POSTGRESQL_URI }}",
+}
 
 
 with DAG(
@@ -29,16 +21,28 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    criar_tabelas = PostgresOperator(
-        task_id='create_tables',
-        postgres_conn_id='postgres_default',
-        sql='/opt/airflow/scr/etl/modeling/create_tables_oficial.sql',
+    migrate = DockerOperator(
+        task_id="migrate_to_postgres",
+        image="etl-scripts",
+        api_version="auto",
+        auto_remove=True,
+        command="python3 scripts/etl/load/migrate.py",
+        docker_url="unix://var/run/docker.sock",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
+        mount_tmp_dir=False
     )
 
-    inserir_dados = PostgresOperator(
-        task_id='insert_data',
-        postgres_conn_id='postgres_default',
-        sql='/opt/airflow/scr/etl/modeling/insert_tables_oficial.sql',
+    model = DockerOperator(
+        task_id="model_data",
+        image="etl-scripts",
+        api_version="auto",
+        auto_remove=True,
+        command="python3 scripts/etl/load/model.py",
+        docker_url="unix://var/run/docker.sock",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
+        mount_tmp_dir=False
     )
 
-    criar_tabelas >> inserir_dados
+    migrate >> model

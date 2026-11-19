@@ -8,14 +8,30 @@ VALUES
 	('casas-de-condominio'),
 	('cobertura'),
 	('flat'),
-	('float');
+	('float')
+ON CONFLICT (tipo) DO NOTHING;
 
 -- Insere valores na tabela dimensão "modo_imovel";
 INSERT INTO public."modo_imovel"(modo)
 VALUES
     ('teste'),
   	('venda'),
-	('aluguel');
+	('aluguel')
+ON CONFLICT (modo) DO NOTHING;
+
+-- Inclui tipos e modos que apareceram na coleta e não estão na lista fixa
+-- (evita que o INNER JOIN da tabela fato descarte imóveis em silêncio);
+INSERT INTO public."tipo_imovel"(tipo)
+SELECT DISTINCT LOWER(tipo_imovel)
+FROM public._treat_imoveis
+WHERE tipo_imovel IS NOT NULL
+ON CONFLICT (tipo) DO NOTHING;
+
+INSERT INTO public."modo_imovel"(modo)
+SELECT DISTINCT LOWER(modo_imovel)
+FROM public._treat_imoveis
+WHERE modo_imovel IS NOT NULL
+ON CONFLICT (modo) DO NOTHING;
 
 -- Insere valores na tabela dimensão "endereco";
 INSERT INTO public."endereco" (
@@ -42,7 +58,8 @@ SELECT
 	'MG',
 	COALESCE(rua, 'Não Definido'),
 	COALESCE(numero::integer, 0)
-FROM public._treat_imobiliarias;
+FROM public._treat_imobiliarias
+ON CONFLICT (endereco) DO NOTHING;
 
 -- Insere valores na tabela dimensão "imobiliaria";
 INSERT INTO public.imobiliaria(
@@ -67,7 +84,10 @@ SELECT
 FROM public._treat_imobiliarias A
 INNER JOIN public.endereco B
     ON A.endereco_completo = B.endereco
-ON CONFLICT (id_imobiliaria) DO NOTHING;
+ON CONFLICT (id_imobiliaria) DO UPDATE SET
+    nome_imobiliaria = EXCLUDED.nome_imobiliaria,
+    quantidade_imovel = EXCLUDED.quantidade_imovel,
+    data_coleta_imobiliaria = EXCLUDED.data_coleta_imobiliaria;
 	
 -- Insere valores na tabela fato "imovel";
 INSERT INTO public.imovel(
@@ -150,4 +170,12 @@ INNER JOIN
     public.tipo_imovel D ON LOWER(A.tipo_imovel) = LOWER(D.tipo)
 INNER JOIN 
     public.modo_imovel E ON LOWER(A.modo_imovel) = LOWER(E.modo)
-ON CONFLICT (id_imovel) DO NOTHING;
+ON CONFLICT (id_imovel) DO UPDATE SET
+    preco = EXCLUDED.preco,
+    descricao_imovel = EXCLUDED.descricao_imovel,
+    imagens_imovel = EXCLUDED.imagens_imovel,
+    data_atualizacao_imovel = EXCLUDED.data_atualizacao_imovel,
+    data_coleta_imovel = EXCLUDED.data_coleta_imovel
+WHERE (imovel.preco, imovel.descricao_imovel, imovel.data_atualizacao_imovel)
+    IS DISTINCT FROM
+    (EXCLUDED.preco, EXCLUDED.descricao_imovel, EXCLUDED.data_atualizacao_imovel);

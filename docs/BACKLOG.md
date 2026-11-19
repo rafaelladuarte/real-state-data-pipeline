@@ -52,7 +52,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - Nome da imagem alinhado (`etl-scripts` nas DAGs vs. `etl_scripts` no compose).
 - Rede entre containers: `MONGO_URI` e `POSTGRESQL_URI` usam o nome dos serviços.
 - Lotes paralelos com dynamic task mapping (`.expand`).
-- DAG `load` com caminhos corretos (hoje aponta para `/opt/airflow/scr/...`).
+- ✅ DAG `load` com caminhos corretos (agora `DockerOperator`).
 
 ---
 
@@ -73,7 +73,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - Teste de contrato com HTML de exemplo versionado em `tests/fixtures/`.
 - Notificação em caso de falha (e-mail ou webhook).
 
-### 7. Carga incremental e idempotente no Postgres — M
+### 7. ✅ Carga idempotente no Postgres — M
 **Por quê:** hoje o staging é recriado (`if_exists="replace"`) e os `INSERT` não são reexecutáveis.
 **Aceite:**
 - Upsert (`ON CONFLICT`) para dimensões e fato.

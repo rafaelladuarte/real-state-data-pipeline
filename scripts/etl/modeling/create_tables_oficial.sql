@@ -1,17 +1,17 @@
 -- Tabela para armazenar tipos de imóveis (ex.: apartamento, casa);
-CREATE TABLE "tipo_imovel" (
+CREATE TABLE IF NOT EXISTS "tipo_imovel" (
   "id_tipo" SERIAL PRIMARY KEY,
   "tipo" VARCHAR(50) NOT NULL UNIQUE
 );
 
 -- Tabela para armazenar modos de imóveis (ex.: comprar, alugar);
-CREATE TABLE "modo_imovel" (
+CREATE TABLE IF NOT EXISTS "modo_imovel" (
   "id_modo" SERIAL PRIMARY KEY,
   "modo" VARCHAR(50) NOT NULL UNIQUE
 );
 
 -- Tabela para armazenar endereços de imóveis;
-CREATE TABLE "endereco" (
+CREATE TABLE IF NOT EXISTS "endereco" (
   "id_endereco" SERIAL PRIMARY KEY,
   "endereco" VARCHAR(250),
   "bairro" VARCHAR(100),
@@ -23,7 +23,7 @@ CREATE TABLE "endereco" (
 );
 
 -- Tabela para armazenar dados de imobiliárias;
-CREATE TABLE "imobiliaria" (
+CREATE TABLE IF NOT EXISTS "imobiliaria" (
   "id_imobiliaria" SERIAL PRIMARY KEY,
   "id_endereco_imobiliaria" INTEGER NOT NULL,
   "nome_imobiliaria" VARCHAR(255) NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE "imobiliaria" (
 );
 
 -- Tabela para armazenar informações sobre imóveis;
-CREATE TABLE "imovel" (
+CREATE TABLE IF NOT EXISTS "imovel" (
   "id_imovel" TEXT PRIMARY KEY,
   "id_imobiliaria" INTEGER NOT NULL,
   "id_endereco_imovel" INTEGER NOT NULL,
@@ -66,6 +66,10 @@ CREATE TABLE "imovel" (
 );
 
 -- Índices sugeridos para melhorar o desempenho;
-CREATE INDEX idx_endereco_cidade ON "endereco" ("bairro");
-CREATE INDEX idx_imobiliaria_nome ON "imobiliaria" ("nome_imobiliaria");
-CREATE INDEX idx_imovel_preco ON "imovel" ("preco");
+CREATE INDEX IF NOT EXISTS idx_endereco_cidade ON "endereco" ("bairro");
+CREATE INDEX IF NOT EXISTS idx_imobiliaria_nome ON "imobiliaria" ("nome_imobiliaria");
+CREATE INDEX IF NOT EXISTS idx_imovel_preco ON "imovel" ("preco");
+
+-- Endereço único: vários imóveis do mesmo endereço compartilham uma linha
+-- (necessário para o upsert e para os joins por texto do insert);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_endereco_endereco ON "endereco" ("endereco");

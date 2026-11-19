@@ -18,7 +18,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
        ▼
   SILVER  ── Mongo: raw_* (parseado) → treat_* (limpo, com hash)
        │
-  4. Carga incremental e idempotente (upsert)
+  4. Carga idempotente (upsert)
        ▼
   GOLD    ── Postgres: dimensões + fato + snapshots de preço + views
        │
@@ -78,6 +78,19 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - **Decisão:** tabela de snapshots (anúncio, preço, data da coleta) e colunas de primeira/última aparição; anúncios que somem são marcados como inativos.
 - **Habilita:** variação de preço e tempo médio no mercado.
 
+### D5. Carga no Postgres: staging completo + upsert idempotente ✅
+- **Problema:** os `INSERT` não eram reexecutáveis (falhavam em tipos/modos já existentes e duplicavam endereços), os joins por texto de endereço eram ambíguos, imóveis com tipo novo eram descartados em silêncio pelo `INNER JOIN`, e `update.py` estava quebrado.
+- **Decisão:**
+  - `migrate.py` copia a camada tratada do Mongo para o staging `_treat_*` (snapshot completo, recriado a cada execução).
+  - `model.py` aplica todos os arquivos SQL de `scripts/etl/modeling` em **uma transação**; todos são idempotentes (`IF NOT EXISTS`, `OR REPLACE`, `ON CONFLICT`).
+  - `endereco` ganhou índice único: imóveis do mesmo endereço compartilham uma linha.
+  - Tipos e modos novos da coleta são criados a partir do staging.
+  - Imóveis e imobiliárias usam upsert: preço, descrição, imagens e datas são atualizados só quando mudam (os triggers recalculam custo/m² e faixa de área).
+- **Resultado:** reexecutar 3 vezes mantém 169 imóveis, 26 imobiliárias e 168 endereços (antes 195, com duplicados); se algo falha, nada é aplicado. Coberto por testes de integração (`tests/test_model_load.py`).
+- **Escolha consciente:** o staging é completo, não incremental. Com ~10 mil linhas é barato e mais seguro (nenhuma etapa perde dados se a seguinte falhar). Com volume muito maior, trocar por carga com marca d'água.
+- **Limitação:** o hash do tratamento ignora o preço, então um anúncio recoletado com preço novo ainda é descartado na camada Mongo antes de chegar aqui; isso é resolvido pelo histórico (D4).
+- **Na DAG `load`:** `migrate_to_postgres → model_data`, ambos em `DockerOperator` (os caminhos antigos para `/opt/airflow/scr/...` não existiam). A DAG `treatment` já a dispara no fim.
+
 ## Princípios
 
 - **Reprocessável:** qualquer camada pode ser reconstruída a partir da anterior.
@@ -91,7 +104,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 1. ~~**D3** — experimento HTTP vs Selenium~~ ✅ concluído: Selenium fica (ver D3).
 2. ~~**D1** — armazenar HTML bruto e separar o parsing~~ ✅ concluído.
 3. ~~**D2** — fila com reserva atômica e workers em paralelo~~ ✅ concluído (benchmark em D2).
-4. **Carga incremental** — upsert nas dimensões e no fato.
+4. ~~**Carga idempotente** — upsert nas dimensões e no fato~~ ✅ concluído (ver D5).
 5. **D4** — snapshots de preço e telas no app.
 6. **Qualidade e alertas**, depois **CI e subida em um comando**.
 7. Só então **ampliar a cobertura** (mais páginas, venda e demais tipos).

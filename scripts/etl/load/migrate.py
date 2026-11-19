@@ -3,13 +3,17 @@ from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.storage.postgres import PostgreDB
 from scripts.infra.security.secrets import get_secret_value
 
-from datetime import datetime
-
-
 logger = get_logger(__name__)
 
 
 def treat_data_to_postgres():
+    """Copia as coleções tratadas do Mongo para o staging do Postgres.
+
+    O staging (_treat_*) é um snapshot completo da camada tratada, recriado a
+    cada execução; a idempotência está no passo seguinte (model.py), que faz
+    upsert no modelo. É seguro reexecutar e não perde dados se uma etapa falhar.
+    Com volume muito maior, trocar por carga incremental com marca d'água.
+    """
     logger.info("---------------- TREAT DATA TO POSTGRES----------------")
     mongo = MongoDB(
         uri=get_secret_value("MONGO_URI")
@@ -38,26 +42,6 @@ def treat_data_to_postgres():
             collection_name=table_name,
             documents=documents,
             if_exists="replace"
-        )
-
-        documents_id = [
-            document["_id"]
-            for document in documents
-        ]
-
-        mongo.update_documents(
-            query={
-                "_id": {"$in": documents_id}
-            },
-            set={
-                "$set": {
-                    "data_migradação": True,
-                    "updated_dt": datetime.now().strftime(
-                        "%d-%m-%Y %H:%M:%S"
-                    )
-                }
-            },
-            collection=collection_name
         )
 
 
