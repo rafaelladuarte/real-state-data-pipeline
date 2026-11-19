@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.security.secrets import get_secret_value
 from scripts.utility.operator import (
@@ -5,8 +6,11 @@ from scripts.utility.operator import (
 )
 
 
+logger = get_logger(__name__)
+
+
 def treat_real_state():
-    print("---------------- TREATMENT REAL STATE----------------")
+    logger.info("---------------- TREATMENT REAL STATE----------------")
 
     mongo = MongoDB(
         uri=get_secret_value('MONGO_URI')
@@ -21,8 +25,8 @@ def treat_real_state():
     while True:
         b += 1
 
-        print(f"=> Batch {b}")
-        print("Get documents in collection 'raw_imobiliarias'")
+        logger.info(f"=> Batch {b}")
+        logger.info("Get documents in collection 'raw_imobiliarias'")
         docs = mongo.get_documents(
             query={
                 'treat': {
@@ -63,7 +67,7 @@ def treat_real_state():
                 }
             )
 
-        print("Update documents in collection 'raw_imoveis'")
+        logger.info("Update documents in collection 'raw_imoveis'")
         mongo.update_documents(
             query={
                 "_id": {
@@ -78,7 +82,7 @@ def treat_real_state():
             collection='raw_imobiliarias'
         )
 
-        print("Insert documents in collection 'treat_imobiliarias'")
+        logger.info("Insert documents in collection 'treat_imobiliarias'")
         mongo.insert_documents(
             documents=data,
             collection='treat_imobiliarias'

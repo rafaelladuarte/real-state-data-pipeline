@@ -1,9 +1,13 @@
+from scripts.utility.log import get_logger
 from scripts.infra.security.secrets import get_secret_value
 
 from pymongo import MongoClient
 
 import json
 import os
+
+
+logger = get_logger(__name__)
 
 
 client = MongoClient(get_secret_value('MONGO_URI'))
@@ -19,7 +23,7 @@ def restore_collections_from_json(db, directory="scripts/backup"):
                 data = json.load(json_file)
                 if data:
                     collection.insert_many(data)
-                    print(f"Coleção {collection_name} restaurada.")
+                    logger.info(f"Coleção {collection_name} restaurada.")
 
 
 restore_collections_from_json(db)

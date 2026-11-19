@@ -1,5 +1,9 @@
+from scripts.utility.log import get_logger
 from typing import Optional
 import os
+
+
+logger = get_logger(__name__)
 
 
 def get_secret_value(secret_nm: str) -> str:
@@ -7,7 +11,7 @@ def get_secret_value(secret_nm: str) -> str:
     if secret_vl:
         return secret_vl
     if not secret_vl:
-        print("Secret has no value")
+        logger.error("Secret has no value")
         raise
 
     return secret_vl

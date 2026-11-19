@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.security.secrets import get_secret_value
 from scripts.utility.operator import (
@@ -13,8 +14,11 @@ from datetime import datetime
 import hashlib
 
 
+logger = get_logger(__name__)
+
+
 def treat_property():
-    print("---------------- TREATMENT PROPERTY ----------------")
+    logger.info("---------------- TREATMENT PROPERTY ----------------")
 
     mongo = MongoDB(
         uri=get_secret_value('MONGO_URI')
@@ -25,8 +29,8 @@ def treat_property():
     while True:
         b += 1
 
-        print(f"=> Batch {b}")
-        print("Get documents in collection 'raw_imoveis'")
+        logger.info(f"=> Batch {b}")
+        logger.info("Get documents in collection 'raw_imoveis'")
         docs = mongo.get_documents(
             query={
                 'treat': {
@@ -97,17 +101,17 @@ def treat_property():
                     }
                 )
 
-                print(f"- {doc["titulo_anuncio"]}")
+                logger.info(f"- {doc["titulo_anuncio"]}")
             except Exception as e:
                 list_id_error[str(e)].append(doc['_id'])
 
-        print("Insert documents in collection 'treat_imoveis'")
+        logger.info("Insert documents in collection 'treat_imoveis'")
         mongo.insert_hash_documents(
             documents=data,
             collection='treat_imoveis'
         )
 
-        print("Update documents in collection 'raw_imoveis'")
+        logger.info("Update documents in collection 'raw_imoveis'")
         mongo.update_documents(
             query={
                 "_id": {

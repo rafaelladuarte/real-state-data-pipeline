@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from selenium.webdriver.common.by import By
 
 from scripts.etl.extraction.scraper import WebScraper
@@ -8,6 +9,9 @@ from scripts.utility.operator import extract_number
 
 from datetime import datetime
 from time import sleep
+
+
+logger = get_logger(__name__)
 
 mongo = MongoDB(
     uri=get_secret_value('MONGO_URI')
@@ -41,7 +45,7 @@ def get_links_property():
 
         url = f"https://www.zapimoveis.com.br/{modo}/{tipo}/mg+uberlandia/"
 
-        print(f"----------- {tipo.upper()} {modo.upper()} -----------")
+        logger.info(f"----------- {tipo.upper()} {modo.upper()} -----------")
 
         scraper = WebScraper()
         scraper.get_driver(url)
@@ -71,17 +75,17 @@ def get_links_property():
             if page == 4:
                 break
 
-            print(f"- PÁGINA {page}")
+            logger.info(f"- PÁGINA {page}")
 
             scraper = WebScraper()
             scraper.get_driver(url + f"?pagina={page}")
 
-            print("Scroll down page...")
+            logger.info("Scroll down page...")
             scraper.scroll_until_element_stops_moving(
                 "aside.campaign[data-cy='campaign']"
             )
 
-            print("Get cards in container")
+            logger.info("Get cards in container")
             cards_container = scraper.get_element(
                 by=By.CLASS_NAME,
                 path="listing-wrapper__content",
@@ -92,7 +96,7 @@ def get_links_property():
                 driver_element=cards_container,
             )
 
-            print("Get information")
+            logger.info("Get information")
             for full_card in list_cards:
                 n = full_card.get_attribute("data-position")
                 card = scraper.get_element(
@@ -122,7 +126,7 @@ def get_links_property():
                         }
                     )
 
-            print("Insert documents in collection 'links_imoveis'")
+            logger.info("Insert documents in collection 'links_imoveis'")
             mongo.insert_documents(
                 documents=data,
                 collection='links_imoveis'

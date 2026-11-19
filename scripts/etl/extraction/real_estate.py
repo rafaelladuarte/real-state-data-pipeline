@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from selenium.webdriver.common.by import By
 
 from scripts.etl.extraction.scraper import WebScraper
@@ -12,8 +13,11 @@ from time import sleep
 import re
 
 
+logger = get_logger(__name__)
+
+
 def get_real_state():
-    print("---------------- REAL STATE ----------------")
+    logger.info("---------------- REAL STATE ----------------")
 
     mongo = MongoDB(
         uri=get_secret_value('MONGO_URI')
@@ -23,7 +27,7 @@ def get_real_state():
     while True:
         b += 1
 
-        print(f"=> Batch {b}")
+        logger.info(f"=> Batch {b}")
 
         pipeline = [
             {
@@ -44,7 +48,7 @@ def get_real_state():
             }
         ]
 
-        print("Get documents in collection 'imoveis'")
+        logger.info("Get documents in collection 'imoveis'")
         docs = mongo.get_documents_aggregate(
             pipeline=pipeline,
             collection='raw_imoveis'
@@ -53,7 +57,7 @@ def get_real_state():
         if len(docs) == 0:
             break
 
-        print("Get 'imobiliaria_url'")
+        logger.info("Get 'imobiliaria_url'")
         list_id_imoveis = []
         list_all_mobi_url = []
         list_id_error = defaultdict(list)
@@ -61,12 +65,12 @@ def get_real_state():
             list_id_imoveis.extend(doc['list_id'])
             list_all_mobi_url.append(doc["_id"])
 
-        print("Filter news 'imobiliaria_url'")
+        logger.info("Filter news 'imobiliaria_url'")
         list_find_mobi_url = mongo.find_missing_mobi_url(
             list_url=list_all_mobi_url
         )
 
-        print('Start Scraper Real State')
+        logger.info('Start Scraper Real State')
 
         data = []
         list_get_mobi_url = []
@@ -134,7 +138,7 @@ def get_real_state():
 
                 list_get_mobi_url.append(mobi_url)
 
-                print(f'- {name}')
+                logger.info(f'- {name}')
 
             except Exception as e:
                 list_id_error[str(e)].append(doc['_id'])
@@ -144,14 +148,14 @@ def get_real_state():
             sleep(2)
 
         if len(data) > 0:
-            print("Insert documents in collection 'raw_imobiliarias'")
+            logger.info("Insert documents in collection 'raw_imobiliarias'")
             mongo.insert_documents(
                 documents=data,
                 collection='raw_imobiliarias'
             )
 
         if len(list_get_mobi_url) > 0:
-            print("Update documents in collection 'raw_imoveis'")
+            logger.info("Update documents in collection 'raw_imoveis'")
             mongo.update_documents(
                 query={
                     "imobiliaria_url": {
@@ -171,7 +175,7 @@ def get_real_state():
             )
 
         if len(list_id_error) > 0:
-            print("Update documents error in collection 'raw_imoveis'")
+            logger.error("Update documents error in collection 'raw_imoveis'")
             for error_type, ids_error in list_id_error.items():
                 mongo.update_documents(
                     query={

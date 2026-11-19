@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.service_account import Credentials
@@ -6,6 +7,9 @@ from google.oauth2.service_account import Credentials
 #     delete_image, download_image
 # )
 from scripts.infra.security.secrets import get_secret_value
+
+
+logger = get_logger(__name__)
 
 
 class GoogleDriver:
@@ -29,9 +33,9 @@ class GoogleDriver:
                 body=permission,
                 fields='id'
             ).execute()
-            print("Arquivo ou pasta compartilhado.")
+            logger.info("Arquivo ou pasta compartilhado.")
         except Exception as e:
-            print(f"Erro ao compartilhar arquivo: {e}")
+            logger.error(f"Erro ao compartilhar arquivo: {e}")
 
     def create_public_folder(self, folder_name: str) -> str:
         creds = Credentials.from_service_account_file(self._cred_path)
@@ -108,10 +112,10 @@ class GoogleDriver:
         items = results.get('files', [])
 
         if not items:
-            print('Nenhum arquivo ou pasta encontrado.')
+            logger.info('Nenhum arquivo ou pasta encontrado.')
             return None
         else:
-            print(f'Arquivos e pastas encontrados: {len(items)}')
+            logger.info(f'Arquivos e pastas encontrados: {len(items)}')
 
             return items
 
@@ -127,9 +131,9 @@ class GoogleDriver:
 
         try:
             service.files().delete(fileId=folder_id).execute()
-            print(f"Pasta com ID {folder_id} foi apagada.")
+            logger.info(f"Pasta com ID {folder_id} foi apagada.")
         except Exception as e:
-            print(f"Erro ao apagar a pasta: {e}")
+            logger.error(f"Erro ao apagar a pasta: {e}")
 
 
 if __name__ == '__main__':
@@ -144,7 +148,7 @@ if __name__ == '__main__':
     items = drive.list_folder_in_drive()
 
     for item in items:
-        print(f"{item['name']} ({item['id']})")
+        logger.info(f"{item['name']} ({item['id']})")
         if item["name"] == "image_test":
             folder_id = item['id']
 

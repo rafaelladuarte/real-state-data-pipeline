@@ -1,10 +1,14 @@
+from scripts.utility.log import get_logger
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.storage.postgres import PostgreDB
 from scripts.infra.security.secrets import get_secret_value
 
 
+logger = get_logger(__name__)
+
+
 def update_data_to_postgres():
-    print("---------------- UPDATE DATA TO POSTGRES----------------")
+    logger.info("---------------- UPDATE DATA TO POSTGRES----------------")
     mongo = MongoDB(
         uri=get_secret_value("MONGO_URI")
     )
@@ -18,9 +22,9 @@ def update_data_to_postgres():
         "treat_imobiliarias"
     ]
     for collection_name in list_collection_names:
-        print(f"=> Collection {collection_name}")
+        logger.info(f"=> Collection {collection_name}")
 
-        print("Get documents in collection")
+        logger.info("Get documents in collection")
         documents = mongo.get_documents(
             query={"data_migradação": {"$exists": False}},
             collection=collection_name
@@ -33,7 +37,7 @@ def update_data_to_postgres():
 
         table_name = "_" + collection_name
 
-        print(f"Insert documents in table '{table_name}'")
+        logger.info(f"Insert documents in table '{table_name}'")
         postgres.post_dataframe(
             collection_name=table_name,
             documents=documents,

@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.storage.postgres import PostgreDB
 from scripts.infra.security.secrets import get_secret_value
@@ -5,8 +6,11 @@ from scripts.infra.security.secrets import get_secret_value
 from datetime import datetime
 
 
+logger = get_logger(__name__)
+
+
 def treat_data_to_postgres():
-    print("---------------- TREAT DATA TO POSTGRES----------------")
+    logger.info("---------------- TREAT DATA TO POSTGRES----------------")
     mongo = MongoDB(
         uri=get_secret_value("MONGO_URI")
     )
@@ -21,7 +25,7 @@ def treat_data_to_postgres():
         "treat_imobiliarias"
     ]
     for collection_name in list_collection_names:
-        print(f"Get documents in collection '{collection_name}'")
+        logger.info(f"Get documents in collection '{collection_name}'")
         documents = mongo.get_documents(
             query={},
             collection=collection_name
@@ -29,7 +33,7 @@ def treat_data_to_postgres():
 
         table_name = "_" + collection_name
 
-        print(f"Insert documents in table '{table_name}'")
+        logger.info(f"Insert documents in table '{table_name}'")
         postgres.post_dataframe(
             collection_name=table_name,
             documents=documents,

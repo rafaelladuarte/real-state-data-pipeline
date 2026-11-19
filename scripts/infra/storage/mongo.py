@@ -1,5 +1,9 @@
+from scripts.utility.log import get_logger
 from bson.objectid import ObjectId
 from pymongo import MongoClient, InsertOne, errors
+
+
+logger = get_logger(__name__)
 
 
 class MongoDB:
@@ -35,20 +39,20 @@ class MongoDB:
 
         try:
             result = coll.bulk_write(operations, ordered=False)
-            print(f"Documentos inseridos com sucesso: {result.inserted_count}")
+            logger.info(f"Documentos inseridos com sucesso: {result.inserted_count}")
         except errors.BulkWriteError as e:
             duplicates = [
                 1
                 for err in e.details['writeErrors']
                 if err['code'] == 11000
             ]
-            print(f"- Documents ignored due to duplication: {len(duplicates)}")
+            logger.info(f"- Documents ignored due to duplication: {len(duplicates)}")
             other_errors = [
                 err
                 for err in e.details['writeErrors']
                 if err['code'] != 11000
             ]
-            print(f"- Documents ignored for other errors: {len(other_errors)}")
+            logger.error(f"- Documents ignored for other errors: {len(other_errors)}")
 
     def get_documents(
         self,
@@ -163,6 +167,6 @@ class MongoDB:
         index_name = f"{hash}_1"
         if index_name not in indexs_exists:
             coll.create_index([(hash, 1)], unique=True)
-            print(f"Index {hash} created in collection {collection}")
+            logger.info(f"Index {hash} created in collection {collection}")
         else:
-            print(f"Index {hash} already exists in collection {collection}")
+            logger.info(f"Index {hash} already exists in collection {collection}")

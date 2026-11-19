@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from sqlalchemy_utils import create_database
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
@@ -5,6 +6,9 @@ from sqlalchemy.schema import CreateSchema
 from sqlalchemy import text
 
 import pandas as pd
+
+
+logger = get_logger(__name__)
 
 
 class PostgreDB:
@@ -66,9 +70,9 @@ class PostgreDB:
             with engine.connect() as connection:
                 connection.execute(text(query))
                 connection.commit()
-            print(f"Sucesso ao executar consultas SQL da tabela {table}")
+            logger.info(f"Sucesso ao executar consultas SQL da tabela {table}")
         except Exception as e:
-            print(f"Erro ao executar consultas SQL da tabela {table}: {e}")
+            logger.error(f"Erro ao executar consultas SQL da tabela {table}: {e}")
 
     def execute_query_transaction(
         self,
@@ -80,9 +84,9 @@ class PostgreDB:
             with Session(engine) as session:
                 session.execute(text(query))
                 session.commit()
-            print(f"Sucesso ao executar consultas SQL da tabela {table}")
+            logger.info(f"Sucesso ao executar consultas SQL da tabela {table}")
         except Exception as e:
-            print(f"Erro ao executar consultas SQL da tabela {table}: {e}")
+            logger.error(f"Erro ao executar consultas SQL da tabela {table}: {e}")
 
     def execute_file_sql(
         self,
@@ -94,4 +98,4 @@ class PostgreDB:
                 session.execute(text(file))
                 session.commit()
         except Exception as e:
-            print(e)
+            logger.error(e)

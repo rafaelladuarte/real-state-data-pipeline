@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from selenium import webdriver
 from selenium_stealth import stealth
 from selenium.webdriver.common.by import By
@@ -9,6 +10,9 @@ from selenium.webdriver.support import expected_conditions as EC
 
 import os
 from time import sleep
+
+
+logger = get_logger(__name__)
 
 
 class WebScraper:
@@ -70,7 +74,7 @@ class WebScraper:
             location = element.location_once_scrolled_into_view
 
             if previous_location is not None and location == previous_location:
-                print("The element has stopped moving.")
+                logger.info("The element has stopped moving.")
                 break
 
             self.driver.execute_script(
@@ -81,7 +85,7 @@ class WebScraper:
 
             previous_location = location
             attempts += 1
-            print(f"Element moved to {location}")
+            logger.info(f"Element moved to {location}")
 
     def get_elements(
         self,

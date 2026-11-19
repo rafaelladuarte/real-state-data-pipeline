@@ -1,3 +1,4 @@
+from scripts.utility.log import get_logger
 from selenium.webdriver.common.by import By
 
 from scripts.etl.extraction.scraper import WebScraper
@@ -14,8 +15,11 @@ from time import sleep
 from copy import copy
 
 
+logger = get_logger(__name__)
+
+
 def get_property():
-    print("---------------- SCRAPER LINKS ----------------")
+    logger.info("---------------- SCRAPER LINKS ----------------")
 
     mongo = MongoDB(
         uri=get_secret_value('MONGO_URI')
@@ -28,8 +32,8 @@ def get_property():
         # if b == 3:
         #     break
 
-        print(f"=> Batch {b}")
-        print("Get documents in collection 'links_imoveis'")
+        logger.info(f"=> Batch {b}")
+        logger.info("Get documents in collection 'links_imoveis'")
         docs = mongo.get_documents(
             query={
                 'scraper': {
@@ -46,7 +50,7 @@ def get_property():
         list_id_error = defaultdict(list)
         list_id = []
 
-        print("Start Scraper")
+        logger.info("Start Scraper")
         for doc in docs[:50]:
             try:
                 link = doc['link']
@@ -269,20 +273,20 @@ def get_property():
 
                 list_id.append(doc['_id'])
 
-                print(f"- {title}")
+                logger.info(f"- {title}")
 
             except Exception as e:
                 list_id_error[str(e)].append(doc['_id'])
 
             scraper.close_driver()
 
-        print("Insert documents in collection 'imoveis'")
+        logger.info("Insert documents in collection 'imoveis'")
         mongo.insert_documents(
             documents=data,
             collection='raw_imoveis'
         )
 
-        print("Update documents in collection 'links_imoveis'")
+        logger.info("Update documents in collection 'links_imoveis'")
         mongo.update_documents(
             query={
                 "_id": {

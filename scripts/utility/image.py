@@ -1,5 +1,9 @@
+from scripts.utility.log import get_logger
 import requests
 import os
+
+
+logger = get_logger(__name__)
 
 
 def download_image(url: str, filename: str) -> tuple[str | None, str | None]:
@@ -20,4 +24,4 @@ def delete_image(filepath: str):
         # else:
         #     print(f"O arquivo {filepath} não foi encontrado.")
     except Exception as e:
-        print(f"Ocorreu um erro ao tentar apagar a imagem: {e}")
+        logger.error(f"Ocorreu um erro ao tentar apagar a imagem: {e}")
