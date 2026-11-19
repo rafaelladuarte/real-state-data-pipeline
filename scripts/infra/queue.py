@@ -11,7 +11,7 @@ processos/containers diferentes (workers do Airflow):
 from pymongo import MongoClient, ReturnDocument
 
 from datetime import datetime, timedelta, UTC
-from time import sleep
+from time import monotonic, sleep
 
 DB = "real_state"
 BASE_BACKOFF_SECONDS = 30
@@ -118,6 +118,7 @@ class RateLimiter:
 
     def wait(self) -> float:
         """Reserva o próximo slot e dorme até ele. Devolve a espera (s)."""
+        started = monotonic()
         doc = self._coll.find_one_and_update(
             {"_id": self._key},
             [{"$set": {
@@ -133,8 +134,11 @@ class RateLimiter:
             upsert=True,
             return_document=ReturnDocument.AFTER,
         )
-        # Ambos vêm do relógio do servidor, então a diferença independe do cliente
-        delay = max((doc["slot"] - doc["now"]).total_seconds(), 0)
+        # slot e now vêm do relógio do servidor, então a diferença independe do
+        # cliente. O servidor carimbou "now" no meio da chamada: desconta metade
+        # da ida e volta para acordar perto do slot reservado.
+        round_trip = monotonic() - started
+        delay = max((doc["slot"] - doc["now"]).total_seconds() - round_trip / 2, 0)
         if delay:
             sleep(delay)
         return delay

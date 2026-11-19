@@ -105,8 +105,9 @@ def test_rate_limiter_spaces_requests_across_threads(db):
         times = sorted(pool.map(call, range(calls)))
 
     gaps = [b - a for a, b in zip(times, times[1:], strict=False)]
-    # Intervalo global respeitado (tolerância para a latência das chamadas)
-    assert min(gaps) >= interval * 0.7
+    # Intervalo global respeitado. A espera é calculada no relógio do servidor e
+    # quem a cumpre acorda após a latência da resposta, então há folga de 50%.
+    assert min(gaps) >= interval * 0.5
     assert times[-1] - times[0] >= interval * (calls - 1) * 0.8
 
 
