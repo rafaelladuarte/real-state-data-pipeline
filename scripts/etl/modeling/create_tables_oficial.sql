@@ -53,7 +53,7 @@ CREATE TABLE "imovel" (
   "quantidade_banheiros" INTEGER DEFAULT NULL,
   "quantidade_vagas" INTEGER DEFAULT NULL,
   "quantidade_suites" INTEGER DEFAULT NULL,
-  "outros" VARCHAR(100),
+  "outros" TEXT,
   "area_m2" INTEGER,
   "custo_m2" NUMERIC,
   "faixa_area" VARCHAR(50),

@@ -15,10 +15,11 @@ FROM public.imovel A
 GROUP BY  modo;
 
 CREATE OR REPLACE VIEW distribuicao_bairro AS
-SELECT 
+SELECT
 	bairro,
 	COUNT(*)
-FROM public.endereco A
+FROM public.imovel I
+INNER JOIN public.endereco A ON A.id_endereco = I.id_endereco_imovel
 GROUP BY bairro;
 
 CREATE OR REPLACE VIEW distribuicao_bairro_modo AS

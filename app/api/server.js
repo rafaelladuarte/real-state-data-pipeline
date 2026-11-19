@@ -40,12 +40,19 @@ route("/api/bairros", () =>
 
 route("/api/preco-medio", (req) => {
   const { modo, tipo } = req.query;
+  // Mínimo de 3 anúncios por bairro para a média não refletir um único imóvel
   return q(
-    `SELECT bairro, media_preco::float AS media_preco
-     FROM media_preco_bairro_modo_tipo
-     WHERE bairro IS NOT NULL
-       AND ($1::text IS NULL OR modo = $1)
-       AND ($2::text IS NULL OR tipo = $2)
+    `SELECT e.bairro, ROUND(AVG(i.preco))::float AS media_preco,
+            COUNT(*)::int AS quantidade
+     FROM imovel i
+     JOIN endereco e ON e.id_endereco = i.id_endereco_imovel
+     JOIN tipo_imovel t ON t.id_tipo = i.id_tipo_imovel
+     JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+     WHERE e.bairro IS NOT NULL
+       AND ($1::text IS NULL OR m.modo = $1)
+       AND ($2::text IS NULL OR t.tipo = $2)
+     GROUP BY e.bairro
+     HAVING COUNT(*) >= 3
      ORDER BY media_preco DESC LIMIT 15`,
     [modo || null, tipo || null]
   );
@@ -64,9 +71,12 @@ route("/api/dispersao", () =>
      WHERE area_m2 IS NOT NULL AND area_m2 > 0 LIMIT 1000`)
 );
 
+// Só valores que existem nos dados (as dimensões trazem linhas de apoio/sem uso)
 route("/api/filtros", async () => ({
-  modos: (await q("SELECT modo FROM modo_imovel ORDER BY 1")).map((r) => r.modo),
-  tipos: (await q("SELECT tipo FROM tipo_imovel ORDER BY 1")).map((r) => r.tipo),
+  modos: (await q(`SELECT DISTINCT m.modo FROM imovel i
+                   JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel ORDER BY 1`)).map((r) => r.modo),
+  tipos: (await q(`SELECT DISTINCT t.tipo FROM imovel i
+                   JOIN tipo_imovel t ON t.id_tipo = i.id_tipo_imovel ORDER BY 1`)).map((r) => r.tipo),
 }));
 
 route("/api/imoveis", (req) => {
