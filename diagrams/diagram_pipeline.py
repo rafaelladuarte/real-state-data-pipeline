@@ -5,6 +5,7 @@ from diagrams.onprem.workflow import Airflow
 from diagrams.onprem.database import PostgreSQL
 from diagrams.onprem.client import User, Client
 from diagrams.programming.language import Python
+from diagrams.programming.framework import React
 
 graph_attr = {
     "fontsize": "25",
@@ -13,7 +14,7 @@ graph_attr = {
 with Diagram(
     "Diagram Real State Data Pipeline",
     filename="diagram_real_state_data_pipeline",
-    show=True,
+    show=False,
     graph_attr=graph_attr
 ):
     user = User("Usuário Final")
@@ -34,7 +35,7 @@ with Diagram(
             python_treatment = Python("2. Treatment")
             sql = Custom("3. Load", "images/sql.png")
 
-    dashboard = Custom("Dashboard", "images/dash_plotly.png")
+    dashboard = React("App Web\n(React + API Express)")
 
     web_page = Client("Web Page")
 
