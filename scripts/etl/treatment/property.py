@@ -6,16 +6,24 @@ from scripts.utility.operator import (
     extract_address, tokenize_and_standardize,
     convert_format_data
 )
+from scripts.etl.quality import check_error_rate, raise_if_violated
 from scripts.etl.treatment.images import treatment_images
 from scripts.etl.treatment.snapshots import COLLECTION, build_snapshot
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, UTC
 
 import hashlib
+import os
 
 
 logger = get_logger(__name__)
+
+BATCH_SIZE = 50
+# Depois de N falhas o anúncio vai para quarentena (treat_quarantine) e deixa de
+# entrar no quality gate; sem isso, uns poucos anúncios ruins reprovariam todas
+# as execuções.
+MAX_TREAT_ATTEMPTS = int(os.getenv("MAX_TREAT_ATTEMPTS", "3"))
 
 
 def treat_property():
@@ -29,6 +37,10 @@ def treat_property():
     known_hashes = set(mongo.distinct_values("hash", "treat_imoveis"))
 
     b = 0
+    n_ok = 0
+    n_errors = 0
+    n_quarantined = 0
+    failed_ids = []  # falhas desta execução: não voltam no loop
     while True:
         b += 1
 
@@ -36,11 +48,15 @@ def treat_property():
         logger.info("Get documents in collection 'raw_imoveis'")
         docs = mongo.get_documents(
             query={
-                'treat': {
-                    "$exists": False
-                },
+                'treat': {"$exists": False},
+                '_id': {"$nin": failed_ids},
+                '$or': [
+                    {'treat_attempts': {"$exists": False}},
+                    {'treat_attempts': {"$lt": MAX_TREAT_ATTEMPTS}},
+                ],
             },
-            collection='raw_imoveis'
+            collection='raw_imoveis',
+            limit=BATCH_SIZE
         )
 
         if len(docs) == 0:
@@ -51,9 +67,8 @@ def treat_property():
         list_id_error = defaultdict(list)
         list_id = []
 
-        for doc in docs[:50]:
+        for doc in docs:
             try:
-                list_id.append(doc["_id"])
                 data_cadastro, data_atualizacao = extract_date(
                     doc["data_anuncio"]
                 )
@@ -83,6 +98,7 @@ def treat_property():
 
                 if unique_hash in known_hashes:
                     # Anúncio já tratado: só o snapshot interessa
+                    list_id.append(doc["_id"])
                     continue
                 known_hashes.add(unique_hash)
 
@@ -119,9 +135,14 @@ def treat_property():
                     }
                 )
 
+                list_id.append(doc["_id"])
                 logger.info(f"- {doc["titulo_anuncio"]}")
             except Exception as e:
+                logger.error(f"Erro ao tratar {doc['_id']}: {e}")
                 list_id_error[str(e)].append(doc['_id'])
+                failed_ids.append(doc['_id'])
+                if doc.get("treat_attempts", 0) + 1 >= MAX_TREAT_ATTEMPTS:
+                    n_quarantined += 1
 
         logger.info(f"Insert {len(snapshots)} snapshots in '{COLLECTION}'")
         mongo.insert_hash_documents(
@@ -135,44 +156,70 @@ def treat_property():
             collection='treat_imoveis'
         )
 
-        logger.info("Update documents in collection 'raw_imoveis'")
-        mongo.update_documents(
-            query={
-                "_id": {
-                    "$in": list_id
-                }
-            },
-            set={
-                "$set": {
-                    "treat": True,
-                    "updated_dt": datetime.now().strftime(
-                        "%d-%m-%Y %H:%M:%S"
-                    )
-                }
-            },
-            collection='raw_imoveis'
+        if list_id:
+            logger.info("Update documents in collection 'raw_imoveis'")
+            mongo.update_documents(
+                query={
+                    "_id": {
+                        "$in": list_id
+                    }
+                },
+                set={
+                    "$set": {
+                        "treat": True,
+                        "updated_dt": datetime.now().strftime(
+                            "%d-%m-%Y %H:%M:%S"
+                        )
+                    }
+                },
+                collection='raw_imoveis'
+            )
+
+        n_ok += len(list_id)
+        failed_ids_batch = [i for ids in list_id_error.values() for i in ids]
+        n_errors += len(failed_ids_batch)
+
+        for error_type, ids_error in list_id_error.items():
+            # Não é "treat": o anúncio continua pendente e conta uma tentativa
+            mongo.update_documents(
+                query={"_id": {"$in": ids_error}},
+                set={
+                    "$set": {
+                        "treat_error": error_type,
+                        "updated_dt": datetime.now().strftime(
+                            "%d-%m-%Y %H:%M:%S"
+                        )
+                    },
+                    "$inc": {"treat_attempts": 1},
+                },
+                collection='raw_imoveis'
+            )
+        if failed_ids_batch:
+            mongo.update_documents(
+                query={
+                    "_id": {"$in": failed_ids_batch},
+                    "treat_attempts": {"$gte": MAX_TREAT_ATTEMPTS},
+                },
+                set={"$set": {"treat_quarantine": True}},
+                collection='raw_imoveis'
+            )
+
+    # Quality gate: só depois de gravar o que deu certo
+    report = check_error_rate(n_ok, n_errors)
+    if n_ok + n_errors:
+        mongo.insert_documents(
+            documents=[{
+                **report.as_metrics("treat_property"),
+                "quarantined": n_quarantined,
+                "at": datetime.now(UTC),
+            }],
+            collection='run_metrics'
         )
-
-        if len(list_id_error) > 0:
-            for error_type, ids_error in list_id_error.items():
-
-                mongo.update_documents(
-                    query={
-                        "_id": {
-                            "$in": ids_error
-                        }
-                    },
-                    set={
-                        "$set": {
-                            "scraper": True,
-                            "error": error_type,
-                            "updated_dt": datetime.now().strftime(
-                                "%d-%m-%Y %H:%M:%S"
-                            )
-                        }
-                    },
-                    collection='raw_imoveis'
-                )
+    logger.info(
+        f"Tratamento: {n_ok} ok, {n_errors} erros, "
+        f"{n_quarantined} em quarentena"
+    )
+    raise_if_violated(report, "treat_property")
 
 
 if __name__ == '__main__':

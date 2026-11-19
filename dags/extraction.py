@@ -11,7 +11,10 @@ import os
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
-    'retries': 1,
+    # Sem retry: repetir depois de um bloqueio anti-bot (disjuntor aberto) ou de um
+    # QualityError do parse reacessa o site/reprocessa e dá o mesmo resultado.
+    # Reexecutar é decisão humana (ou o próximo agendamento).
+    'retries': 0,
     'on_failure_callback': notify_failure,
 }
 

@@ -1,6 +1,5 @@
 from scripts.utility.log import get_logger
 from selenium import webdriver
-from selenium_stealth import stealth
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
@@ -37,11 +36,6 @@ class WebScraper:
         options.add_argument("--disable-application-cache")
         options.add_argument("--disable-cache")
         options.add_argument("--incognito")
-        options.add_experimental_option(
-            "excludeSwitches",
-            ["enable-automation"]
-        )
-        options.add_experimental_option('useAutomationExtension', False)
 
         # options.add_argument("--disable-dev-shm-usage")
         # options.add_argument("--no-sandbox")
@@ -52,16 +46,6 @@ class WebScraper:
         driver = webdriver.Chrome(
             service=Service(driver_path),
             options=options
-        )
-
-        stealth(
-            driver,
-            languages=["en-US", "en"],
-            vendor="Google Inc.",
-            platform="Win32",
-            webgl_vendor="Intel Inc.",
-            renderer="Intel Iris OpenGL Engine",
-            fix_hairline=True
         )
 
         return driver

@@ -24,6 +24,24 @@ SQL_FILES = [
 ]
 
 
+ORPHANS_SQL = """
+SELECT COUNT(*) FROM public._treat_imoveis A
+LEFT JOIN public.imobiliaria B ON A.id_imobiliaria = B.id_imobiliaria
+WHERE B.id_imobiliaria IS NULL
+"""
+
+
+def _warn_orphans(cursor) -> None:
+    """Imóveis de imobiliárias não coletadas ficam fora da tabela fato (INNER JOIN)."""
+    cursor.execute(ORPHANS_SQL)
+    orphans = cursor.fetchone()[0]
+    if orphans:
+        logger.warning(
+            f"{orphans} imóveis ficaram fora da tabela fato: "
+            "imobiliária ainda não coletada"
+        )
+
+
 def build_model(uri: str | None = None) -> None:
     logger.info("---------------- MODEL DATA IN POSTGRES ----------------")
     engine = create_engine(uri or get_secret_value("POSTGRESQL_URI"))
@@ -35,6 +53,8 @@ def build_model(uri: str | None = None) -> None:
         for name in SQL_FILES:
             logger.info(f"Executando {name}")
             cursor.execute((MODELING_DIR / name).read_text(encoding="utf-8"))
+            if name == "insert_tables_oficial.sql":
+                _warn_orphans(cursor)
         connection.commit()
         logger.info("Modelagem aplicada")
     except Exception:

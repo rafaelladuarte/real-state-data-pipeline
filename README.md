@@ -8,7 +8,7 @@
   <img alt="MongoDB" src="https://img.shields.io/badge/MongoDB-7-47A248?style=for-the-badge&logo=mongodb&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black">
   <img alt="Status" src="https://img.shields.io/static/v1?label=Status&message=Concluido&color=green&style=for-the-badge">
-  <a href="https://github.com/rafaelladuarte/real_state_data_pipeline/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/rafaelladuarte/real_state_data_pipeline/ci.yml?style=for-the-badge&label=CI"></a>
+  <a href="https://github.com/rafaelladuarte/real-state-data-pipeline/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/rafaelladuarte/real-state-data-pipeline/ci.yml?style=for-the-badge&label=CI"></a>
 </p>
 
 Pipeline de dados **ponta a ponta** que coleta anúncios de imóveis de Uberlândia/MG, trata e modela os dados e os entrega em um app web interativo. O projeto de portfólio foca em **coletar em escala com responsabilidade**, **reprocessar sem recoletar** e **carregar de forma idempotente**.
@@ -124,7 +124,7 @@ Detalhes em [app/README.md](app/README.md).
 | Área | Tecnologias |
 |---|---|
 | Linguagem | Python 3.12, JavaScript |
-| Coleta | Selenium, selenium-stealth, BeautifulSoup + lxml |
+| Coleta | Selenium, BeautifulSoup + lxml |
 | Orquestração | Apache Airflow 2.7 (`DockerOperator`, dynamic task mapping) |
 | Armazenamento | MongoDB (silver), PostgreSQL (gold), storage S3-compatível RustFS (bronze) |
 | App | Express, React, Vite, Recharts |
@@ -223,7 +223,7 @@ docker compose up -d
 
 As DAGs `extraction` → `treatment` → `load` rodam os mesmos scripts em containers `etl-scripts` na rede `real_state_airflow`. Elas leem `MONGO_URI`, `POSTGRESQL_URI` e `S3_*` das Variables do Airflow (veja `.env.example`). A DAG `extraction` roda diariamente e reenfileira links coletados há mais de 7 dias, o que alimenta o histórico de preço.
 
-> A pilha do Airflow ainda não foi validada de ponta a ponta; os scripts e os serviços de dados foram testados individualmente.
+> O compose inclui o `airflow_triggerer`, exigido pelos `TriggerDagRunOperator` deferrable. As tasks de coleta e parse rodam com `retries: 0` (repetir após bloqueio ou `QualityError` não ajuda). A sequência `extraction` → `treatment` → `load` pelo Airflow ainda **não foi executada de ponta a ponta**; os scripts e os serviços de dados foram testados individualmente.
 
 ### 6. Testes
 
@@ -270,7 +270,7 @@ pytest
 
 - O ritmo é limitado globalmente e há pausa e retentativa com backoff.
 - **Disjuntor anti-bloqueio:** se o site responder com um desafio anti-bot, o worker **não repete a requisição**: devolve o link à fila com uma pausa longa (sem gastar tentativa) e, após 3 bloqueios seguidos, interrompe a coleta e falha a task para alertar. Isso aconteceu de verdade durante a coleta de venda e foi tratado reduzindo o ritmo.
-- Proteções do site, como a Cloudflare, **não** são contornadas. Páginas protegidas ficam fora do escopo.
+- Proteções do site, como a Cloudflare, **não** são contornadas: não há `selenium-stealth` nem ocultação de flags de automação, e CAPTCHAs e desafios ficam fora do escopo (o disjuntor acima apenas interrompe a coleta).
 - O telefone das imobiliárias **não** é coletado, porque exigiria enviar contatos fictícios ao formulário do site.
 - O projeto tem fins educacionais e de portfólio. Verifique os termos de uso do site antes de qualquer outra utilização.
 

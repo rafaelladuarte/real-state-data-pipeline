@@ -133,3 +133,10 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - Onde hospedar o MinIO no `docker-compose` e política de retenção do HTML (tamanho × tempo).
 - Frequência de recoleta para detectar mudanças de preço e anúncios removidos.
 - ~~Limite global de requisições~~ definido: 1,25 s entre requisições (≈ 48/min), configurável. Revisar se o site começar a responder com bloqueios.
+
+### D-hash. Identidade do imóvel e quarentena no tratamento
+
+- **Decisão:** o hash do imóvel (tipo, modo, área, quartos, banheiros, vagas, bairro, data de criação) **não** inclui o `anuncio_id` nem a imobiliária. A intenção é juntar o mesmo imóvel anunciado por várias imobiliárias.
+- **Limitação:** unidades idênticas no mesmo bairro e cadastradas no mesmo dia (ex.: lançamentos) viram um só. Incluir o `anuncio_id` evitaria isso, mas mudaria todos os hashes já gravados e duplicaria o histórico.
+- **Erros no tratamento:** um anúncio que falha **não** é marcado como tratado; recebe `treat_error` e `treat_attempts`. Após `MAX_TREAT_ATTEMPTS` (3) vai para quarentena (`treat_quarantine`) e sai da fila e do quality gate. A taxa de erros da execução é avaliada depois de gravar o que deu certo e registrada em `run_metrics`.
+- **Carga:** a tabela fato usa `INNER JOIN` com `imobiliaria` (`id_imobiliaria` é `NOT NULL`); imóveis de imobiliárias ainda não coletadas ficam de fora, e `model.py` registra um aviso com a quantidade.

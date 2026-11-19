@@ -18,9 +18,6 @@ WORKDIR /app
 # Segredos (MONGO_URI, POSTGRESQL_URI, ...) são injetados em tempo de execução
 COPY requirements.txt /app/
 
-RUN mkdir -p /app/scripts
-COPY . /app/scripts
-
 RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get install -y ./google-chrome-stable_current_amd64.deb \
     && rm google-chrome-stable_current_amd64.deb \
@@ -37,6 +34,10 @@ ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 RUN python -m venv /app/venv \
     && /app/venv/bin/pip install --upgrade pip \
     && /app/venv/bin/pip install --no-cache-dir --trusted-host pypi.python.org -r requirements.txt
+
+# Código por último: mudar um .py não reinstala as dependências
+RUN mkdir -p /app/scripts
+COPY . /app/scripts
 
 ENV PYTHONPATH=/app
 ENV PATH="/app/venv/bin:$PATH"

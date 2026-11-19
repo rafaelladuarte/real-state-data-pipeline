@@ -143,7 +143,7 @@ if __name__ == '__main__':
         folder_id=get_secret_value('FOLDER_ID')
     )
 
-    # drive.create_public_folder("real_state_data_pipeline_images")
+    # drive.create_public_folder("real-state-data-pipeline_images")
 
     items = drive.list_folder_in_drive()
 

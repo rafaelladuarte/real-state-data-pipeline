@@ -547,7 +547,7 @@ export default function App() {
             Dados de anúncios públicos coletados e tratados por um pipeline de ETL próprio: coleta com ritmo limitado,
             HTML bruto guardado, carga idempotente no PostgreSQL. É uma amostra das primeiras páginas de cada busca,
             então os números descrevem a amostra, não o mercado inteiro.{" "}
-            <a href="https://github.com/rafaelladuarte/real_state_data_pipeline">Código no GitHub</a>.
+            <a href="https://github.com/rafaelladuarte/real-state-data-pipeline">Código no GitHub</a>.
           </p>
         </footer>
       </div>

@@ -1,8 +1,7 @@
 -- Insere valores na tabela dimensão "tipo_imovel";
 INSERT INTO public."tipo_imovel"(tipo)
 VALUES
-    ('teste'),
-  	('casas'),
+    ('casas'),
 	('apartamentos'),
 	('quitinetes'),
 	('casas-de-condominio'),
@@ -14,8 +13,7 @@ ON CONFLICT (tipo) DO NOTHING;
 -- Insere valores na tabela dimensão "modo_imovel";
 INSERT INTO public."modo_imovel"(modo)
 VALUES
-    ('teste'),
-  	('venda'),
+    ('venda'),
 	('aluguel')
 ON CONFLICT (modo) DO NOTHING;
 

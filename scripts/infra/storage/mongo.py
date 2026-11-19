@@ -9,14 +9,15 @@ logger = get_logger(__name__)
 class MongoDB:
     def __init__(self, uri: str):
         self._uri = uri
+        # Um cliente por instância (pool de conexões interno do pymongo)
+        self._client = MongoClient(uri)
 
     def insert_documents(
         self,
         documents: list,
         collection: str
     ) -> None:
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         documents = [{**doc, '_id': ObjectId()} for doc in documents]
 
@@ -33,8 +34,7 @@ class MongoDB:
         if not documents:
             return
 
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         documents = [{**doc, '_id': ObjectId()} for doc in documents]
 
@@ -63,12 +63,14 @@ class MongoDB:
     def get_documents(
         self,
         query: dict,
-        collection: str
+        collection: str,
+        limit: int = 0
     ) -> list[dict]:
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         cursor = coll.find(query)
+        if limit:
+            cursor = cursor.limit(limit)
         data = []
         for c in cursor:
             data.append(c)
@@ -81,8 +83,7 @@ class MongoDB:
         set: dict,
         collection: str
     ) -> None:
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         coll.update_many(query, set)
 
@@ -91,8 +92,7 @@ class MongoDB:
         query: dict,
         collection: str
     ) -> int:
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         return coll.delete_many(query).deleted_count
 
@@ -102,8 +102,7 @@ class MongoDB:
         set: dict,
         collection: str
     ) -> None:
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         coll.update_one(query, set)
 
@@ -112,8 +111,7 @@ class MongoDB:
         pipeline: list,
         collection: str
     ) -> list[dict]:
-        client = MongoClient(self._uri)
-        coll = client["real_state"][collection]
+        coll = self._client["real_state"][collection]
 
         cursor = coll.aggregate(pipeline)
 
@@ -127,8 +125,7 @@ class MongoDB:
         self,
         list_url: list,
     ) -> list[str]:
-        client = MongoClient(self._uri)
-        coll = client['real_state']['imobiliarias']
+        coll = self._client['real_state']['imobiliarias']
 
         existing_mobi_url = coll.distinct(
             "id_imobiliaria",
@@ -152,26 +149,21 @@ class MongoDB:
             flag: str,
             collection: str
     ) -> list[dict]:
-        client = MongoClient(self._uri)
-        coll = client['real_state'][collection]
+        coll = self._client['real_state'][collection]
 
         cursor = coll.distinct(key=flag)
         data = cursor[:50]
 
-        client.close()
-
         return data
 
     def distinct_values(self, field: str, collection: str) -> list:
-        client = MongoClient(self._uri)
-        try:
-            return client['real_state'][collection].distinct(field)
-        finally:
-            client.close()
+        return self._client['real_state'][collection].distinct(field)
+
+    def close(self) -> None:
+        self._client.close()
 
     def list_collection_names(self) -> list[str]:
-        client = MongoClient(self._uri)
-        database = client['real_state']
+        database = self._client['real_state']
 
         data = database.list_collection_names()
 
@@ -182,8 +174,7 @@ class MongoDB:
         collection: str,
         hash: str
     ) -> None:
-        client = MongoClient(self._uri)
-        coll = client['real_state'][collection]
+        coll = self._client['real_state'][collection]
 
         indexs_exists = coll.index_information()
 
