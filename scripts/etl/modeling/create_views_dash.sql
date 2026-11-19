@@ -19,9 +19,9 @@ SELECT
 	bairro,
 	COUNT(*)
 FROM public.endereco A
-GROUP BY bairro
+GROUP BY bairro;
 
-CREATE OR REPLACE  distribuicao_bairro_modo AS
+CREATE OR REPLACE VIEW distribuicao_bairro_modo AS
 SELECT 
 	bairro,
 	modo,

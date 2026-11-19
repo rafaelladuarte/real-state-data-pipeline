@@ -34,6 +34,10 @@ Este projeto visa automatizar o processo de coleta e análise de dados de imóve
 - **Dash Plotly**: Visualização interativa dos dados e criação de dashboards.
 - **Selenium**: Ferramentas para scraping de dados dos sites de imobiliárias.
 
+## App de visualização
+
+A pasta [`app/`](app/README.md) traz uma API Express e um frontend React que consomem as views do Postgres (preço médio por bairro, distribuição por tipo, dispersão preço × área e listagem filtrável).
+
 ## Estrutura do Pipeline
 
 1. **Extração de Dados**
