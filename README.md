@@ -79,13 +79,14 @@ Com 2 workers o teto global já é atingido; mais workers só aumentam o uso de 
 
 Uma página editorial em vez de um painel de relatório: a manchete pergunta *quanto custa alugar em Uberlândia?* e responde com um número de destaque (a **mediana** do aluguel), seguido de seções cujos títulos enunciam a conclusão do gráfico. Preço médio e idade mediana do anúncio por bairro (só com 3 ou mais anúncios, para um imóvel isolado não distorcer), oferta por bairro, dispersão preço × metragem, variação de preço entre coletas e uma lista filtrável de anúncios.
 
+- **Aluguel ou venda:** um seletor fixo no topo filtra a página inteira (manchete, número de destaque, gráficos e lista). A escolha vai para a URL (`?modo=venda`), então o link é compartilhável.
 - **Identidade visual:** um único salmão (`#e2634d`), validado nos temas claro e escuro quanto a faixa de luminosidade, croma e contraste; títulos em serifa e números sempre em sans.
 - **Acessível por padrão:** cada gráfico tem a tabela equivalente a um clique ("Ver como tabela"), foco visível, tema claro/escuro e respeito a `prefers-reduced-motion`.
 - **Gráficos leves:** barras finas com o valor na ponta, grade em fio, tooltip próprio e pontos com área de toque maior que a marca.
 
 Detalhes em [app/README.md](app/README.md).
 
-> Os números do app vêm de uma **amostra** de aluguel coletada em 19/11/2026 (169 imóveis, 26 imobiliárias, primeiras páginas de cada busca). Não representam o mercado inteiro.
+> Os números do app vêm de uma **amostra** coletada em 19/11/2026: 438 imóveis (282 de aluguel e 156 de venda) de 62 imobiliárias, com as 3 primeiras páginas de cada busca. Não representam o mercado inteiro.
 
 ## Modelo de dados
 
@@ -238,6 +239,8 @@ pytest
 | `MIN_INTERVAL_SECONDS` | `1.25` | Intervalo mínimo **global** entre requisições |
 | `SCRAPER_WORKERS` | `3` | Workers paralelos na DAG `extraction` |
 | `MAX_ATTEMPTS` | `3` | Tentativas por link antes de desistir |
+| `BLOCK_COOLDOWN_SECONDS` | `900` | Pausa de um link devolvido à fila após um desafio anti-bot |
+| `MAX_CONSECUTIVE_BLOCKS` | `3` | Bloqueios seguidos que interrompem o worker |
 | `RECRAWL_AFTER_DAYS` | `7` | Idade a partir da qual um link é recoletado |
 | `REPROCESS` | `false` | Reparseia todo o HTML guardado |
 | `ALERT_WEBHOOK_URL` | vazio | Webhook para alertas de falha das DAGs |
@@ -246,13 +249,14 @@ pytest
 ## Coleta responsável
 
 - O ritmo é limitado globalmente e há pausa e retentativa com backoff.
+- **Disjuntor anti-bloqueio:** se o site responder com um desafio anti-bot, o worker **não repete a requisição**: devolve o link à fila com uma pausa longa (sem gastar tentativa) e, após 3 bloqueios seguidos, interrompe a coleta e falha a task para alertar. Isso aconteceu de verdade durante a coleta de venda e foi tratado reduzindo o ritmo.
 - Proteções do site, como a Cloudflare, **não** são contornadas. Páginas protegidas ficam fora do escopo.
 - O telefone das imobiliárias **não** é coletado, porque exigiria enviar contatos fictícios ao formulário do site.
 - O projeto tem fins educacionais e de portfólio. Verifique os termos de uso do site antes de qualquer outra utilização.
 
 ## Limitações conhecidas
 
-- **Cobertura:** a coleta atual é uma amostra (primeiras páginas de aluguel de casas e apartamentos). A ordenação do site enviesa os rankings por bairro.
+- **Cobertura:** a coleta é uma amostra (3 primeiras páginas de cada busca de aluguel e venda de casas e apartamentos; ~30 anúncios por página). A ordenação do site enviesa os rankings por bairro. Venda de apartamentos ficou com 70 de 71 links, porque a coleta foi interrompida após o site começar a limitar o ritmo.
 - **Imobiliárias:** a página pública da imobiliária fica atrás da Cloudflare, então nome, quantidade de imóveis e data de cadastro vêm do anúncio; credencial, endereço e telefone não estão disponíveis.
 - **Variação de preço:** só aparece a partir da segunda coleta em outro dia; até lá o app informa isso.
 - **Remoção de anúncios:** não ter sido visto na última coleta não prova que o anúncio saiu do ar, porque a coleta cobre só parte das páginas.

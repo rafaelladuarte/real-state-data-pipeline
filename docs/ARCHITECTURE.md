@@ -82,7 +82,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
   - **Recoleta:** a task `requeue_stale_links` (primeira da DAG `extraction`) reenfileira links coletados há mais de `RECRAWL_AFTER_DAYS` (7) dias; links coletados antes do D4 contam como antigos.
   - `python scripts/etl/treatment/snapshots.py` cria o primeiro snapshot dos anúncios tratados antes do D4 (idempotente).
   - App: tempo mediano no mercado por bairro e variação de preço entre coletas.
-- **O que já aparece com 1 coleta:** tempo no mercado (vem da data de criação do anúncio no site; mediana de ~33 dias para casas e ~38 para apartamentos na amostra). **Variação de preço** só aparece a partir da 2ª coleta em outro dia; até lá o app informa isso em vez de mostrar uma tela vazia.
+- **O que já aparece com 1 coleta:** tempo no mercado (vem da data de criação do anúncio no site; na amostra, mediana de 14 dias para aluguel e 46 para venda). **Variação de preço** só aparece a partir da 2ª coleta em outro dia; até lá o app informa isso em vez de mostrar uma tela vazia.
 - **Cuidado de interpretação:** `visto_na_ultima_coleta = falso` não significa que o anúncio saiu do ar, porque a coleta cobre só parte das páginas. Detectar remoção de verdade exigiria varrer toda a busca.
 - **Bugs corrigidos no caminho:** `insert_hash_documents` quebrava com lista vazia (exatamente o caso de uma recoleta sem anúncios novos) e logava `ERROR` com 0 erros.
 - **Não validado com dados reais ainda:** a mudança de preço foi testada com dados sintéticos (testes de integração); a recoleta real em outro dia ainda não aconteceu.
@@ -103,7 +103,8 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 ### D6. Qualidade, alertas e CI ✅
 - **Gate de qualidade** (`scripts/etl/quality.py`): o parsing avalia campos vazios e erros **antes de gravar**. Com o parser quebrado, nada entra em `raw_imoveis` e os links não são marcados como processados; corrigido o parser, a execução seguinte reprocessa o mesmo HTML (benefício direto da camada bruta, D1). Testado com um parser simulado como quebrado.
 - **Limites** (calibrados com os dados reais, em que os campos essenciais têm 0% de nulos): críticos ≤ 5%, importantes ≤ 30%, erros ≤ 20%, e só com amostra de pelo menos 10 itens.
-- **Bloqueio do site:** o worker de coleta também falha quando a taxa de erros passa do limite.
+- **Bloqueio do site:** o worker de coleta também falha quando a taxa de links que desistiram passa do limite.
+- **Disjuntor anti-bloqueio:** ao detectar o desafio da Cloudflare (título "Just a moment..."), o worker lança `BlockedError`, não repete a requisição, devolve o link à fila com pausa de 15 min sem gastar tentativa e, após 3 bloqueios seguidos, interrompe a coleta e falha a task. Motivação real: na coleta de venda, com 3 workers e 1,25 s de intervalo, cerca de um quarto das requisições passou a receber o desafio; os workers foram parados, o site voltou ao normal e a coleta foi retomada com 2 workers e 3 s de intervalo. O benchmark do D2 (20 anúncios por rodada) não revelou esse limite: ele só aparece em coletas mais longas, então o intervalo seguro precisa ser validado em volume.
 - **Observabilidade:** coleção `run_metrics` com total, erros, taxas e violações por etapa.
 - **Alertas:** `on_failure_callback` das três DAGs envia a falha ao webhook de `ALERT_WEBHOOK_URL`; o envio nunca derruba a DAG.
 - **CI:** lint (ruff), pytest com Mongo e Postgres como serviços, build do frontend e build da imagem de ETL com teste rápido. Validado localmente a partir de um clone novo; o workflow em si ainda não rodou no GitHub.

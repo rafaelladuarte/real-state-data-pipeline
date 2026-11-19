@@ -15,6 +15,13 @@ from time import sleep
 logger = get_logger(__name__)
 
 
+class BlockedError(RuntimeError):
+    """O site respondeu com um desafio anti-bot (ex.: Cloudflare). Não insistir."""
+
+
+BLOCK_MARKERS = ("Just a moment", "Attention Required")
+
+
 class WebScraper:
     def __init__(self):
         self.driver = self.config_driver()
@@ -158,6 +165,13 @@ class WebScraper:
             try:
                 return scraper.fetch_html(url, wait_css, timeout)
             except TimeoutException:
+                try:
+                    title = scraper.driver.title
+                except Exception:
+                    title = ""
+                if any(marker in title for marker in BLOCK_MARKERS):
+                    # Repetir logo em seguida só aumentaria a pressão sobre o site
+                    raise BlockedError(f"desafio anti-bot: {title!r}") from None
                 if attempt == retries:
                     raise
                 sleep(5)

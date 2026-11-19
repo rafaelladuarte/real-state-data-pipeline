@@ -22,7 +22,7 @@ cd app/web && npm install && npm run dev
 `/api/variacao-preco`, `/api/preco-modo-tipo`, `/api/faixa-area`, `/api/dispersao`, `/api/filtros`,
 `/api/imoveis?modo=&tipo=&bairro=&quartos=`
 
-Preço médio e tempo no mercado por bairro só consideram bairros com pelo menos 3 anúncios.
+Todos os endpoints aceitam `?modo=aluguel|venda` (a página inteira é filtrada pelo seletor do topo). Preço médio e tempo no mercado por bairro só consideram bairros com pelo menos 3 anúncios.
 
 ## Design
 

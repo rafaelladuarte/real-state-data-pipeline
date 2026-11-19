@@ -33,9 +33,16 @@ route("/api/resumo", async () => {
   return { tipos, modos };
 });
 
-route("/api/bairros", () =>
-  q(`SELECT bairro, count::int AS quantidade FROM distribuicao_bairro
-     WHERE bairro IS NOT NULL ORDER BY 2 DESC LIMIT 15`)
+route("/api/bairros", (req) =>
+  q(
+    `SELECT e.bairro, COUNT(*)::int AS quantidade
+     FROM imovel i
+     JOIN endereco e ON e.id_endereco = i.id_endereco_imovel
+     JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+     WHERE e.bairro IS NOT NULL AND ($1::text IS NULL OR m.modo = $1)
+     GROUP BY e.bairro ORDER BY quantidade DESC LIMIT 15`,
+    [req.query.modo || null]
+  )
 );
 
 route("/api/preco-medio", (req) => {
@@ -77,25 +84,32 @@ route("/api/tempo-mercado", (req) => {
 });
 
 // Histórico de preço: datas de coleta e anúncios com variação
-route("/api/variacao-preco", async () => {
+route("/api/variacao-preco", async (req) => {
+  const modo = req.query.modo || null;
   const [coletas, variacoes] = await Promise.all([
-    q(`SELECT TO_CHAR(data_coleta, 'DD/MM/YYYY') AS data, COUNT(*)::int AS quantidade
-       FROM imovel_snapshot GROUP BY data_coleta ORDER BY data_coleta`),
+    q(`SELECT TO_CHAR(s.data_coleta, 'DD/MM/YYYY') AS data, COUNT(*)::int AS quantidade
+       FROM imovel_snapshot s
+       JOIN imovel i ON i.id_imovel = s.id_imovel
+       JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+       WHERE ($1::text IS NULL OR m.modo = $1)
+       GROUP BY s.data_coleta ORDER BY s.data_coleta`, [modo]),
     q(`SELECT c.id_imovel, i.titulo_imovel AS titulo, c.bairro, c.tipo,
                c.preco_inicial, c.preco_atual, c.variacao_pct::float AS variacao_pct,
                c.mudancas_preco::int AS mudancas
         FROM imovel_ciclo_vida c JOIN imovel i ON i.id_imovel = c.id_imovel
-        WHERE c.mudancas_preco > 0
-        ORDER BY ABS(c.variacao_pct) DESC LIMIT 20`),
+        WHERE c.mudancas_preco > 0 AND ($1::text IS NULL OR c.modo = $1)
+        ORDER BY ABS(c.variacao_pct) DESC LIMIT 20`, [modo]),
   ]);
   return { coletas, variacoes };
 });
 
-// Números de destaque da página (usa o modo com mais anúncios; medianas, não médias)
-route("/api/destaques", async () => {
+// Números de destaque da página (do modo pedido, ou o mais frequente; medianas, não médias)
+route("/api/destaques", async (req) => {
   const [top] = await q(
     `SELECT m.modo FROM imovel i JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
-     GROUP BY m.modo ORDER BY COUNT(*) DESC LIMIT 1`
+     WHERE ($1::text IS NULL OR m.modo = $1)
+     GROUP BY m.modo ORDER BY COUNT(*) DESC LIMIT 1`,
+    [req.query.modo || null]
   );
   if (!top) return { modo: null };
   const [geral] = await q(
@@ -142,12 +156,16 @@ route("/api/faixa-area", () =>
   q("SELECT faixa_area, modo, tipo, count::int AS quantidade FROM dispersao_faixa_area_modo_tipo")
 );
 
-route("/api/dispersao", () =>
-  q(`SELECT preco, area_m2 FROM dispersao_preco_quartos_area
-     WHERE area_m2 IS NOT NULL AND area_m2 > 0 LIMIT 1000`)
+route("/api/dispersao", (req) =>
+  q(
+    `SELECT i.preco, i.area_m2
+     FROM imovel i JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel
+     WHERE i.preco IS NOT NULL AND i.area_m2 > 0 AND ($1::text IS NULL OR m.modo = $1)
+     LIMIT 1000`,
+    [req.query.modo || null]
+  )
 );
 
-// Só valores que existem nos dados (as dimensões trazem linhas de apoio/sem uso)
 route("/api/filtros", async () => ({
   modos: (await q(`SELECT DISTINCT m.modo FROM imovel i
                    JOIN modo_imovel m ON m.id_modo = i.id_modo_imovel ORDER BY 1`)).map((r) => r.modo),

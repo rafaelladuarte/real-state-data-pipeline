@@ -36,8 +36,8 @@ def get_links_property():
         # "cobertura", "flat", "float",
     ]
     modos = [
-        # "venda",
-        "aluguel"
+        "venda",
+        "aluguel",
     ]
 
     blends = [

@@ -79,8 +79,8 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - Upsert (`ON CONFLICT`) para dimensões e fato.
 - Reexecutar a DAG não duplica dados nem perde histórico.
 
-### 8. Ampliar a cobertura da coleta — P
-**Por quê:** hoje é uma amostra (~2,5% de ~7.000 anúncios de aluguel; só casas e apartamentos).
+### 8. Ampliar a cobertura da coleta — P (venda ✅; falta ampliar páginas e tipos)
+**Por quê:** hoje é uma amostra (438 anúncios de aluguel e venda de casas e apartamentos, 3 páginas por busca; uma fração pequena dos milhares listados).
 **Aceite:**
 - `MAX_PAGES` e modos/tipos configuráveis por variável de ambiente ou parâmetro da DAG.
 - Habilitar venda e demais tipos.

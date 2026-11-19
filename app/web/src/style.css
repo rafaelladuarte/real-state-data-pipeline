@@ -72,18 +72,32 @@ p { margin: 0; }
 button, select, input { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 
-/* ---------- Topo ---------- */
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; letter-spacing: 0.01em; }
-.brand::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+/* ---------- Topo (fixo, com o seletor de modo) ---------- */
+.topbar-wrap {
+  position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; letter-spacing: 0.01em; min-width: 0; }
+.brand::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 .theme-btn {
   background: none; border: 1px solid var(--line); color: var(--ink-2); cursor: pointer;
-  border-radius: 999px; padding: 6px 14px; font-size: 13px;
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; white-space: nowrap;
 }
 .theme-btn:hover { border-color: var(--accent); color: var(--ink); }
 
+/* Controle segmentado: escolhe o modo de toda a página */
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.seg button {
+  border: 0; background: none; cursor: pointer; border-radius: 999px; padding: 6px 18px;
+  font-size: 14px; font-weight: 600; color: var(--ink-2);
+}
+.seg button:hover { color: var(--ink); }
+.seg button.is-on { background: var(--accent); color: var(--on-accent); }
+
 /* ---------- Manchete e destaque ---------- */
-.masthead { padding: 44px 0 8px; }
+.masthead { padding: 40px 0 8px; }
 .kicker {
   display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--accent-ink);
@@ -104,6 +118,7 @@ button, select, input { font: inherit; color: inherit; }
   font-size: clamp(4.2rem, 11vw, 8rem); margin-top: 10px; width: fit-content;
   background: linear-gradient(transparent 64%, var(--wash-2) 64%);
 }
+.hero-number.is-long { font-size: clamp(3rem, 7.6vw, 5.6rem); }
 .hero-note { margin-top: 14px; color: var(--ink-2); max-width: 38ch; }
 
 .tiles { display: grid; grid-template-columns: 1fr 1fr; }
@@ -193,6 +208,8 @@ td.price { font-weight: 650; }
 }
 @media (max-width: 520px) {
   .wrap { padding: 0 16px; }
+  .brand-name { display: none; }
+  .seg button { padding: 6px 14px; }
   .tile { padding: 14px 14px; }
   .tile-value { font-size: 1.5rem; }
   .note { padding: 22px; font-size: 1.1rem; }

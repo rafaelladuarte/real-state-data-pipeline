@@ -89,6 +89,16 @@ class LinkQueue:
         )
         return result.modified_count
 
+    def release(self, doc: dict, cooldown_seconds: int) -> None:
+        """Devolve o link à fila após uma pausa, sem contar como tentativa."""
+        self._coll.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {"lease_until": _now() + timedelta(seconds=cooldown_seconds)},
+                "$unset": {"lease_owner": ""},
+            },
+        )
+
     def fail(self, doc: dict, error: str, max_attempts: int = 3) -> bool:
         """Registra a falha. Devolve True se esgotou as tentativas."""
         attempts = doc.get("attempts", 0) + 1

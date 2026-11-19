@@ -7,6 +7,10 @@ import {
 const brl = (v) =>
   Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const num = (v) => Number(v).toLocaleString("pt-BR");
+const brlCompact = (v) =>
+  Number(v).toLocaleString("pt-BR", {
+    style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1,
+  });
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /* Números dentro de títulos em serifa ficam em sans (dígitos alinhados e legíveis). */
@@ -15,14 +19,31 @@ const figures = (text) =>
   String(text).split(FIGURES).map((part, i) => (i % 2 ? <span className="fig" key={i}>{part}</span> : part));
 
 const MODOS = {
-  aluguel: { verbo: "alugar", rotulo: "Aluguel mediano por mês" },
-  venda: { verbo: "comprar", rotulo: "Preço mediano de venda" },
+  aluguel: { nome: "Aluguel", verbo: "alugar", rotulo: "Aluguel mediano por mês" },
+  venda: { nome: "Venda", verbo: "comprar", rotulo: "Preço mediano de venda" },
 };
+const ORDEM_MODOS = ["aluguel", "venda"];
+const sortModos = (modos) =>
+  [...modos].sort((a, b) => (ORDEM_MODOS.indexOf(a) + 99) % 99 - (ORDEM_MODOS.indexOf(b) + 99) % 99);
+
+/* Modo escolhido: vem da URL (?modo=venda) e volta para ela, para o link ser compartilhável. */
+function useModo(modos) {
+  const [pedido, setPedido] = useState(() => new URLSearchParams(window.location.search).get("modo"));
+  const modo = modos.includes(pedido) ? pedido : modos[0] ?? null;
+  const escolher = (m) => {
+    setPedido(m);
+    const url = new URL(window.location.href);
+    url.searchParams.set("modo", m);
+    window.history.replaceState(null, "", url);
+  };
+  return [modo, escolher];
+}
 
 /* Mantém os dados anteriores enquanto recarrega (sem piscar nem pular o layout). */
 function useApi(path) {
   const [state, setState] = useState({ data: null, error: null, loading: true });
   useEffect(() => {
+    if (!path) return undefined;
     let alive = true;
     setState((s) => ({ ...s, error: null, loading: true }));
     fetch(path)
@@ -54,6 +75,19 @@ function ThemeToggle() {
     >
       {effective === "dark" ? "☀ Claro" : "☾ Escuro"}
     </button>
+  );
+}
+
+function ModoToggle({ modos, modo, onChange }) {
+  if (modos.length < 2) return null;
+  return (
+    <div className="seg" role="group" aria-label="Aluguel ou venda">
+      {modos.map((m) => (
+        <button key={m} className={m === modo ? "is-on" : undefined} aria-pressed={m === modo} onClick={() => onChange(m)}>
+          {MODOS[m]?.nome ?? cap(m)}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -91,11 +125,23 @@ function CategoryTick({ x, y, payload }) {
   );
 }
 
+/* Valor na ponta da barra, sempre em uma linha (o rótulo padrão quebra em barras curtas). */
+function BarValue({ x, y, width, height, value, fmt }) {
+  return (
+    <text
+      x={x + width + 8} y={y + height / 2} dy={4.5}
+      fill="var(--ink-2)" fontSize={12.5} fontWeight={600} style={{ whiteSpace: "nowrap" }}
+    >
+      {fmt(value)}
+    </text>
+  );
+}
+
 /* Barras finas, ponta arredondada, valor na ponta; sem eixo X (todo valor está rotulado). */
 function HBar({ data, x, y, fmt = num }) {
   return (
     <ResponsiveContainer width="100%" height={data.length * 32 + 8}>
-      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 76, bottom: 0, left: 0 }}>
+      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 100, bottom: 0, left: 0 }}>
         <XAxis type="number" hide domain={[0, "dataMax"]} />
         <YAxis
           type="category" dataKey={y} width={150} interval={0}
@@ -106,10 +152,7 @@ function HBar({ data, x, y, fmt = num }) {
           dataKey={x} fill="var(--accent)" barSize={14} radius={[0, 4, 4, 0]}
           activeBar={{ fill: "var(--accent-hover)" }} isAnimationActive={false}
         >
-          <LabelList
-            dataKey={x} position="right" formatter={fmt}
-            style={{ fill: "var(--ink-2)", fontSize: 12.5, fontWeight: 600 }}
-          />
+          <LabelList dataKey={x} content={(props) => <BarValue {...props} fmt={fmt} />} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -232,7 +275,9 @@ function Masthead({ destaques }) {
       <div className="hero">
         <div>
           <div className="hero-label">{modo.rotulo}</div>
-          <div className="hero-number">{d?.modo ? brl(d.preco_mediano) : "—"}</div>
+          <div className={`hero-number${d?.modo && brl(d.preco_mediano).length > 9 ? " is-long" : ""}`}>
+            {d?.modo ? brl(d.preco_mediano) : "—"}
+          </div>
           <p className="hero-note">Metade dos anúncios custa menos que isso, metade custa mais.</p>
         </div>
         <div className="tiles">
@@ -251,13 +296,12 @@ function Masthead({ destaques }) {
 
 /* ---------- Seções de conteúdo ---------- */
 
-function PrecoPorBairro() {
+function PrecoPorBairro({ modo }) {
   const filtros = useApi("/api/filtros");
-  const [modo, setModo] = useState("");
   const [tipo, setTipo] = useState("");
   const qs = new URLSearchParams({ ...(modo && { modo }), ...(tipo && { tipo }) });
   const state = useApi(`/api/preco-medio?${qs}`);
-  const f = filtros.data || { modos: [], tipos: [] };
+  const f = filtros.data || { tipos: [] };
   const top = state.data?.[0];
   return (
     <Section
@@ -266,10 +310,6 @@ function PrecoPorBairro() {
       lede="Preço médio por bairro, só com 3 ou mais anúncios, para um imóvel isolado não distorcer o resultado."
       aside={(
         <div className="filters">
-          <select aria-label="Modo" value={modo} onChange={(e) => setModo(e.target.value)}>
-            <option value="">Todos os modos</option>
-            {f.modos.map((m) => <option key={m} value={m}>{cap(m)}</option>)}
-          </select>
           <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>
             <option value="">Todos os tipos</option>
             {f.tipos.map((t) => <option key={t} value={t}>{cap(t)}</option>)}
@@ -292,14 +332,19 @@ function PrecoPorBairro() {
   );
 }
 
-function Anuncios({ total }) {
-  const state = useApi("/api/bairros");
+function Anuncios({ total, modo }) {
+  const state = useApi(`/api/bairros?modo=${modo}`);
   const top = state.data?.[0];
   const share = top && total ? Math.round((100 * top.quantidade) / total) : null;
   return (
     <Section
       kicker="02 · Oferta"
-      title={top ? `${top.bairro} concentra ${share ?? "boa parte"}${share ? "%" : ""} dos anúncios` : "Onde estão os anúncios"}
+      title={
+        !top ? "Onde estão os anúncios"
+          : share != null && share >= 12 ? `${top.bairro} concentra ${share}% dos anúncios`
+          : share != null ? `Os anúncios se espalham: nenhum bairro passa de ${share}%`
+          : "Onde estão os anúncios"
+      }
       lede="Os 15 bairros com mais anúncios na amostra. A ordem das páginas do site influencia esse ranking."
     >
       <ChartBlock
@@ -313,8 +358,8 @@ function Anuncios({ total }) {
   );
 }
 
-function IdadeDoAnuncio({ mediana }) {
-  const state = useApi("/api/tempo-mercado");
+function IdadeDoAnuncio({ mediana, modo }) {
+  const state = useApi(`/api/tempo-mercado?modo=${modo}`);
   return (
     <Section
       kicker="03 · Tempo"
@@ -336,8 +381,10 @@ function IdadeDoAnuncio({ mediana }) {
   );
 }
 
-function PrecoETamanho() {
-  const state = useApi("/api/dispersao");
+function PrecoETamanho({ modo }) {
+  const state = useApi(`/api/dispersao?modo=${modo}`);
+  const maxPreco = Math.max(0, ...(state.data ?? []).map((r) => r.preco));
+  const fmtPreco = maxPreco >= 10000 ? brlCompact : brl;
   return (
     <FullSection
       kicker="04 · Tamanho"
@@ -362,7 +409,7 @@ function PrecoETamanho() {
                 tick={{ fill: "var(--ink-2)", fontSize: 12 }}
               />
               <YAxis
-                type="number" dataKey="preco" name="Preço" tickFormatter={brl} width={84}
+                type="number" dataKey="preco" name="Preço" tickFormatter={fmtPreco} width={78}
                 axisLine={false} tickLine={false} tick={{ fill: "var(--ink-2)", fontSize: 12 }}
               />
               <Tooltip cursor={false} content={<ScatterTip />} />
@@ -375,8 +422,8 @@ function PrecoETamanho() {
   );
 }
 
-function VariacaoDePreco() {
-  const state = useApi("/api/variacao-preco");
+function VariacaoDePreco({ modo }) {
+  const state = useApi(`/api/variacao-preco?modo=${modo}`);
   const d = state.data;
   const coletas = d?.coletas.length ?? 0;
   const varia = d?.variacoes ?? [];
@@ -416,7 +463,7 @@ function VariacaoDePreco() {
   );
 }
 
-function ListaDeAnuncios() {
+function ListaDeAnuncios({ modo }) {
   const [bairro, setBairro] = useState("");
   const [quartos, setQuartos] = useState("");
   const [busca, setBusca] = useState({});
@@ -424,7 +471,7 @@ function ListaDeAnuncios() {
     const t = setTimeout(() => setBusca({ bairro, quartos }), 300);
     return () => clearTimeout(t);
   }, [bairro, quartos]);
-  const qs = new URLSearchParams(Object.entries(busca).filter(([, v]) => v));
+  const qs = new URLSearchParams(Object.entries({ ...busca, modo }).filter(([, v]) => v));
   const state = useApi(`/api/imoveis?${qs}`);
   const rows = state.data ?? [];
   return (
@@ -460,31 +507,50 @@ function ListaDeAnuncios() {
 }
 
 export default function App() {
-  const destaques = useApi("/api/destaques");
+  const filtros = useApi("/api/filtros");
+  const modos = sortModos(filtros.data?.modos ?? []);
+  const [modo, setModo] = useModo(modos);
+  const destaques = useApi(modo ? `/api/destaques?modo=${modo}` : null);
   const d = destaques.data;
+
+  useEffect(() => {
+    document.title = `Quanto custa ${MODOS[modo]?.verbo ?? "alugar"} em Uberlândia`;
+  }, [modo]);
+
   return (
-    <div className="wrap">
-      <div className="topbar">
-        <span className="brand">Mercado imobiliário</span>
-        <ThemeToggle />
+    <>
+      <div className="topbar-wrap">
+        <div className="wrap topbar">
+          <span className="brand"><span className="brand-name">Mercado imobiliário</span></span>
+          <ModoToggle modos={modos} modo={modo} onChange={setModo} />
+          <ThemeToggle />
+        </div>
       </div>
-      <Masthead destaques={destaques} />
-      <main>
-        <PrecoPorBairro />
-        <Anuncios total={d?.total} />
-        <IdadeDoAnuncio mediana={d?.dias_mediana} />
-        <PrecoETamanho />
-        <VariacaoDePreco />
-        <ListaDeAnuncios />
-      </main>
-      <footer className="footer">
-        <p>
-          Dados de anúncios públicos coletados e tratados por um pipeline de ETL próprio: coleta com ritmo limitado,
-          HTML bruto guardado, carga idempotente no PostgreSQL. É uma amostra das primeiras páginas de cada busca,
-          então os números descrevem a amostra, não o mercado inteiro.{" "}
-          <a href="https://github.com/rafaelladuarte/real_state_data_pipeline">Código no GitHub</a>.
-        </p>
-      </footer>
-    </div>
+      <div className="wrap">
+        {!modo ? (
+          <p className="msg">{filtros.error ? "Não foi possível carregar." : "Carregando…"}</p>
+        ) : (
+          <>
+            <Masthead destaques={destaques} />
+            <main>
+              <PrecoPorBairro modo={modo} />
+              <Anuncios total={d?.total} modo={modo} />
+              <IdadeDoAnuncio mediana={d?.dias_mediana} modo={modo} />
+              <PrecoETamanho modo={modo} />
+              <VariacaoDePreco modo={modo} />
+              <ListaDeAnuncios modo={modo} />
+            </main>
+          </>
+        )}
+        <footer className="footer">
+          <p>
+            Dados de anúncios públicos coletados e tratados por um pipeline de ETL próprio: coleta com ritmo limitado,
+            HTML bruto guardado, carga idempotente no PostgreSQL. É uma amostra das primeiras páginas de cada busca,
+            então os números descrevem a amostra, não o mercado inteiro.{" "}
+            <a href="https://github.com/rafaelladuarte/real_state_data_pipeline">Código no GitHub</a>.
+          </p>
+        </footer>
+      </div>
+    </>
   );
 }
