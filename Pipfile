@@ -20,6 +20,7 @@ sqlalchemy-utils = "*"
 webdriver-manager = "*"
 beautifulsoup4 = "*"
 lxml = "*"
+minio = "*"
 
 [dev-packages]
 pytest = "*"

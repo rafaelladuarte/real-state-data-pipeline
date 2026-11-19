@@ -12,7 +12,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
   2. Coleta  ──▶ N workers em paralelo (dynamic task mapping)
        │            HTTP simples; Selenium só se o teste (D3) exigir
        ▼
-  BRONZE  ── HTML comprimido em MinIO/S3 (chave: data/tipo/id)
+  BRONZE  ── HTML comprimido em object storage S3-compatível (chave: tipo/data/id)
        │
   3. Parse ──▶ reprocessável a partir do HTML guardado
        ▼
@@ -30,11 +30,17 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 
 ## Decisões
 
-### D1. Camada bruta: HTML em MinIO/S3, mantendo o Mongo
-- **Problema:** o Mongo guarda documentos já parseados. Quando o site foi redesenhado, foi preciso reescrever os scrapers e coletar tudo de novo.
-- **Decisão:** guardar o HTML comprimido no object storage. O Mongo continua como camada parseada (silver).
-- **Consequência:** extração e parsing passam a ser etapas separadas; mudar um parser significa reprocessar, não recoletar.
-- **Alternativas descartadas:** eliminar o Mongo (exigiria reescrever tratamento e migração); manter só o Mongo (não permite reprocessar).
+### D1. Camada bruta: HTML em object storage S3-compatível, mantendo o Mongo ✅
+- **Problema:** o Mongo guardava documentos já parseados. Quando o site foi redesenhado, foi preciso reescrever os scrapers e coletar tudo de novo.
+- **Decisão:** guardar o HTML comprimido (gzip) no object storage. O Mongo continua como camada parseada (silver).
+- **Implementação:**
+  - `property.py` só busca e grava o HTML (`anuncio/AAAA-MM-DD/<id>.html.gz`); `links.py` também grava as páginas de listagem.
+  - `parse_property.py` lê do storage e gera `raw_imoveis`, com `anuncio_id`, `link` e `html_key` para rastreabilidade.
+  - `REPROCESS=true python scripts/etl/extraction/parse_property.py` reparseia todos os HTMLs sem acessar o site e substitui os documentos brutos do anúncio (testado: 8 → 8, sem duplicar).
+  - Na DAG: `get_links → get_property → parse_property → get_real_state → start_treatment`.
+- **Storage usado:** RustFS (S3-compatível). O MinIO deixou de publicar imagens da edição comunitária (Docker Hub e Quay recusaram o pull), e o cliente Python `minio` fala o protocolo S3, então a troca não altera o código além das variáveis `S3_*`.
+- **Limitação conhecida:** o hash do tratamento não inclui o preço, então reprocessar atualiza o bruto, mas não altera documentos já tratados; isso é resolvido pelo histórico (D4).
+- **Alternativas descartadas:** eliminar o Mongo (reescrita de tratamento e migração); manter só o Mongo (não permite reprocessar).
 
 ### D2. Paralelismo: Airflow dynamic task mapping + fila no Mongo
 - **Decisão:** a coleção `links_imoveis` funciona como fila. Cada worker reserva links com `find_one_and_update` (com expiração da reserva) e processa em lotes mapeados com `.expand`.
@@ -71,7 +77,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 ## Ordem sugerida de implementação
 
 1. ~~**D3** — experimento HTTP vs Selenium~~ ✅ concluído: Selenium fica (ver D3).
-2. **D1** — armazenar HTML bruto e separar o parsing.
+2. ~~**D1** — armazenar HTML bruto e separar o parsing~~ ✅ concluído.
 3. **D2** — fila com reserva atômica e workers em paralelo; benchmark com 1, 2 e 4 workers.
 4. **Carga incremental** — upsert nas dimensões e no fato.
 5. **D4** — snapshots de preço e telas no app.

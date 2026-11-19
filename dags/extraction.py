@@ -15,6 +15,9 @@ default_args = {
 ETL_ENV = {
     "MONGO_URI": "{{ var.value.MONGO_URI }}",
     "POSTGRESQL_URI": "{{ var.value.POSTGRESQL_URI }}",
+    "S3_ENDPOINT": "object_store:9000",
+    "S3_ACCESS_KEY": "{{ var.value.S3_ACCESS_KEY }}",
+    "S3_SECRET_KEY": "{{ var.value.S3_SECRET_KEY }}",
 }
 
 
@@ -49,6 +52,18 @@ with DAG(
         mount_tmp_dir=False
     )
 
+    parse_property = DockerOperator(
+        task_id="parse_property",
+        image="etl-scripts",
+        api_version="auto",
+        auto_remove=True,
+        command="python3 scripts/etl/extraction/parse_property.py",
+        docker_url="unix://var/run/docker.sock",
+        network_mode="real_state_airflow",
+        environment=ETL_ENV,
+        mount_tmp_dir=False
+    )
+
     real_state = DockerOperator(
         task_id="get_real_state",
         image="etl-scripts",
@@ -68,4 +83,4 @@ with DAG(
         deferrable=True,
     )
 
-    links >> property >> real_state >> start_treatment
+    links >> property >> parse_property >> real_state >> start_treatment

@@ -13,3 +13,4 @@ br-nome-gen
 requests
 pydrive
 google-api-python-client
+minio

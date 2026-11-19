@@ -80,6 +80,16 @@ class MongoDB:
 
         coll.update_many(query, set)
 
+    def delete_documents(
+        self,
+        query: dict,
+        collection: str
+    ) -> int:
+        client = MongoClient(self._uri)
+        coll = client["real_state"][collection]
+
+        return coll.delete_many(query).deleted_count
+
     def update_document(
         self,
         query: dict,

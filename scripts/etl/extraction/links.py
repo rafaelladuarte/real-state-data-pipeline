@@ -4,6 +4,7 @@ from scripts.etl.extraction.parsers import (
 from scripts.etl.extraction.scraper import WebScraper
 from scripts.infra.security.secrets import get_secret_value
 from scripts.infra.storage.mongo import MongoDB
+from scripts.infra.storage.object_store import ObjectStore, html_key
 from scripts.utility.log import get_logger
 
 from datetime import datetime
@@ -45,6 +46,8 @@ def get_links_property():
         for modo in modos
     ]
 
+    store = ObjectStore()
+
     known_links = {
         doc["link"]
         for doc in mongo.get_documents(
@@ -58,6 +61,7 @@ def get_links_property():
         logger.info(f"----------- {tipo.upper()} {modo.upper()} -----------")
 
         html = WebScraper.fetch_html_once(url, LISTING_READY_CSS)
+        store.put_html(html_key("listagem", f"{modo}-{tipo}-p1"), html)
         total = parse_total_results(html) or 0
         pages = min(MAX_PAGES, -(-total // PAGE_SIZE))
         logger.info(f"{total} anúncios encontrados; coletando {pages} páginas")
@@ -68,6 +72,9 @@ def get_links_property():
                 sleep(PAUSE_SECONDS)
                 html = WebScraper.fetch_html_once(
                     f"{url}?pagina={page}", LISTING_READY_CSS
+                )
+                store.put_html(
+                    html_key("listagem", f"{modo}-{tipo}-p{page}"), html
                 )
 
             links = [

@@ -22,10 +22,10 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 
 ## P0 — Base para demonstrar escala
 
-### 1. Guardar o HTML bruto e separar extração de parsing — M
+### 1. ✅ Guardar o HTML bruto e separar extração de parsing — M
 **Por quê:** quando o site mudou, foi preciso reescrever os scrapers e coletar tudo de novo. Com o HTML guardado, basta reprocessar.
 **Aceite:**
-- O scraper grava o HTML comprimido (MinIO/S3 ou disco) com chave `data/tipo/id`.
+- O scraper grava o HTML comprimido (object storage S3-compatível) com chave `data/tipo/id`.
 - Um passo separado lê o HTML guardado e produz `raw_imoveis`.
 - Existe um comando para reprocessar sem acessar o site.
 
