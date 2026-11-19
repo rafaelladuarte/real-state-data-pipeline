@@ -29,11 +29,13 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - Um passo separado lê o HTML guardado e produz `raw_imoveis`.
 - Existe um comando para reprocessar sem acessar o site.
 
-### 2. Medir se HTTP simples serve para os anúncios — P
+### 2. ✅ Medir se HTTP simples serve para os anúncios — P
 **Por quê:** os dados estão no HTML estático; se `httpx` funcionar, a coleta fica dezenas de vezes mais rápida e o Selenium fica só onde for indispensável.
 **Aceite:**
 - Experimento documentado: taxa de sucesso, latência e bloqueios de HTTP vs. Selenium.
 - Decisão registrada no README (não contornar desafios de bot como a Cloudflare).
+
+**Resultado:** HTTP simples recebe 403 da Cloudflare (0/6); Selenium 6/6. Mantém-se o Selenium; o ganho de escala vem de paralelizar (item 3). Detalhes em [ARCHITECTURE.md](ARCHITECTURE.md#d3).
 
 ### 3. Coleta paralela com fila e reserva atômica — M
 **Por quê:** hoje a coleta é serial (um Chrome novo por página, ~5 s por anúncio).
