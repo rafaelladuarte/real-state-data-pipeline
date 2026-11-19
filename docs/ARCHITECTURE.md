@@ -42,9 +42,21 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - **Limitação conhecida:** o hash do tratamento não inclui o preço, então reprocessar atualiza o bruto, mas não altera documentos já tratados; isso é resolvido pelo histórico (D4).
 - **Alternativas descartadas:** eliminar o Mongo (reescrita de tratamento e migração); manter só o Mongo (não permite reprocessar).
 
-### D2. Paralelismo: Airflow dynamic task mapping + fila no Mongo
-- **Decisão:** a coleção `links_imoveis` funciona como fila. Cada worker reserva links com `find_one_and_update` (com expiração da reserva) e processa em lotes mapeados com `.expand`.
-- **Regras de coleta:** pausa por domínio, retentativa com backoff, limite de workers configurável.
+### D2. Paralelismo: Airflow dynamic task mapping + fila no Mongo ✅
+- **Decisão:** a coleção `links_imoveis` funciona como fila. Cada worker reserva links com `find_one_and_update` (lease com expiração, `scripts/infra/queue.py`). Em falha, o link volta à fila com backoff exponencial (30 s, 60 s, 120 s…) e, após 3 tentativas, é marcado como erro.
+- **Limite global:** um `RateLimiter` no Mongo reserva atomicamente o próximo "slot" de tempo, então a soma de todos os workers respeita um intervalo mínimo entre requisições (`MIN_INTERVAL_SECONDS`, padrão **1,25 s ≈ 0,8 anúncio/s ≈ 48 por minuto**). O relógio usado é o do servidor Mongo (`$$NOW`), independente dos clientes.
+- **Na DAG:** `DockerOperator.partial(...).expand(environment=[...])` cria uma instância por worker (`SCRAPER_WORKERS`, padrão 3), todas consumindo a mesma fila.
+- **Benchmark** (`docs/experiments/parallel_scaling.py`, 20 anúncios por rodada, requisições reais):
+
+  | Workers | OK | Erros | Tempo (s) | Anúncios/s |
+  |---|---|---|---|---|
+  | 1 | 20 | 0 | 40,8 | 0,49 |
+  | 2 | 20 | 0 | 26,3 | 0,76 |
+  | 4 | 20 | 0 | 26,6 | 0,75 |
+
+- **Leitura:** 1 worker fica limitado pela latência do navegador (~1,9 s por página); com 2 o teto global (0,80/s) já é atingido, e com 4 não há ganho, só mais Chrome em memória. Nenhum anúncio foi coletado duas vezes (20 chaves distintas em cada rodada). Comparado à coleta serial original (~5 s por anúncio, ≈ 0,2/s), a taxa é cerca de **3,8× maior**; 7.000 anúncios levariam ~2,6 h em vez de ~10 h.
+- **Por que 3 workers por padrão:** 2 já saturam o teto; o terceiro dá folga quando uma página demora ou falha e é reenfileirada.
+- **Limitações:** o limitador e a fila dependem do Mongo estar acessível a todos os workers. A lista de workers da DAG é fixa por configuração (`SCRAPER_WORKERS`), não calculada a partir do tamanho da fila; planejar isso dinamicamente exigiria `pymongo` na imagem do Airflow.
 - **Alternativa descartada:** Redis + Celery (dois serviços a mais, sem necessidade para o volume atual).
 
 ### D3. Coleta: Selenium; HTTP simples não funciona (experimento concluído)
@@ -78,7 +90,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 
 1. ~~**D3** — experimento HTTP vs Selenium~~ ✅ concluído: Selenium fica (ver D3).
 2. ~~**D1** — armazenar HTML bruto e separar o parsing~~ ✅ concluído.
-3. **D2** — fila com reserva atômica e workers em paralelo; benchmark com 1, 2 e 4 workers.
+3. ~~**D2** — fila com reserva atômica e workers em paralelo~~ ✅ concluído (benchmark em D2).
 4. **Carga incremental** — upsert nas dimensões e no fato.
 5. **D4** — snapshots de preço e telas no app.
 6. **Qualidade e alertas**, depois **CI e subida em um comando**.
@@ -88,4 +100,4 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 
 - Onde hospedar o MinIO no `docker-compose` e política de retenção do HTML (tamanho × tempo).
 - Frequência de recoleta para detectar mudanças de preço e anúncios removidos.
-- Limite global de requisições por minuto que define o número máximo de workers (o experimento do D3 mostrou que o gargalo é o ritmo de cortesia, não o cliente).
+- ~~Limite global de requisições~~ definido: 1,25 s entre requisições (≈ 48/min), configurável. Revisar se o site começar a responder com bloqueios.

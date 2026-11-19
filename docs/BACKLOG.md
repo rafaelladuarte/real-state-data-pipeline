@@ -37,7 +37,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 
 **Resultado:** HTTP simples recebe 403 da Cloudflare (0/6); Selenium 6/6. Mantém-se o Selenium; o ganho de escala vem de paralelizar (item 3). Detalhes em [ARCHITECTURE.md](ARCHITECTURE.md#d3).
 
-### 3. Coleta paralela com fila e reserva atômica — M
+### 3. ✅ Coleta paralela com fila e reserva atômica — M
 **Por quê:** hoje a coleta é serial (um Chrome novo por página, ~5 s por anúncio).
 **Aceite:**
 - Links na fila do Mongo reservados com `find_one_and_update` (com expiração da reserva).

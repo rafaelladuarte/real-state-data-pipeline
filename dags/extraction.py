@@ -4,6 +4,8 @@ from airflow import DAG
 
 from datetime import datetime
 
+import os
+
 
 default_args = {
     'owner': 'airflow',
@@ -18,7 +20,11 @@ ETL_ENV = {
     "S3_ENDPOINT": "object_store:9000",
     "S3_ACCESS_KEY": "{{ var.value.S3_ACCESS_KEY }}",
     "S3_SECRET_KEY": "{{ var.value.S3_SECRET_KEY }}",
+    # Intervalo mínimo GLOBAL entre requisições (somando todos os workers)
+    "MIN_INTERVAL_SECONDS": os.getenv("MIN_INTERVAL_SECONDS", "1.25"),
 }
+# Quantidade de workers de coleta em paralelo
+SCRAPER_WORKERS = int(os.getenv("SCRAPER_WORKERS", "3"))
 
 
 with DAG(
@@ -40,7 +46,9 @@ with DAG(
         mount_tmp_dir=False
     )
 
-    property = DockerOperator(
+    # Dynamic task mapping: uma instância por worker; todas consomem a mesma
+    # fila (reserva atômica no Mongo) e dividem o limite global de requisições
+    property = DockerOperator.partial(
         task_id="get_property",
         image="etl-scripts",
         api_version="auto",
@@ -48,8 +56,12 @@ with DAG(
         command="python3 scripts/etl/extraction/property.py",
         docker_url="unix://var/run/docker.sock",
         network_mode="real_state_airflow",
-        environment=ETL_ENV,
-        mount_tmp_dir=False
+        mount_tmp_dir=False,
+    ).expand(
+        environment=[
+            {**ETL_ENV, "WORKER_ID": f"worker-{i}"}
+            for i in range(1, SCRAPER_WORKERS + 1)
+        ]
     )
 
     parse_property = DockerOperator(

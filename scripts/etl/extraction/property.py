@@ -1,98 +1,71 @@
-"""Coleta o HTML dos anúncios e guarda na camada bruta (MinIO).
+"""Worker de coleta: busca o HTML dos anúncios e guarda na camada bruta.
 
-Somente busca e armazena; o parsing é feito por parse_property.py, que pode
-ser reexecutado sem acessar o site.
+Vários workers podem rodar em paralelo (tarefas mapeadas do Airflow ou
+processos): cada link é reservado de forma atômica (LinkQueue) e todos
+compartilham um limite global de requisições (RateLimiter).
+
+Somente busca e armazena; o parsing é feito por parse_property.py.
 """
 from scripts.etl.extraction.scraper import WebScraper
+from scripts.infra.queue import LinkQueue, RateLimiter
 from scripts.infra.security.secrets import get_secret_value
-from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.storage.object_store import (
     ObjectStore, ad_id_from_url, html_key
 )
 from scripts.utility.log import get_logger
 
-from collections import defaultdict
-from datetime import datetime
-from time import sleep
+import os
+import socket
 
 
 logger = get_logger(__name__)
 
 DETAIL_READY_CSS = '[data-testid="location-address"]'
-PAUSE_SECONDS = 3
-BATCH_SIZE = 50
+# Intervalo mínimo GLOBAL entre requisições (0,8 req/s ≈ 48 por minuto)
+MIN_INTERVAL_SECONDS = float(os.getenv("MIN_INTERVAL_SECONDS", "1.25"))
+MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "3"))
+
+
+def run_worker(worker_id: str, collection: str = "links_imoveis") -> dict:
+    uri = get_secret_value('MONGO_URI')
+    queue = LinkQueue(uri, collection)
+    limiter = RateLimiter(uri, MIN_INTERVAL_SECONDS)
+    store = ObjectStore()
+
+    stats = {"worker": worker_id, "ok": 0, "errors": 0}
+    logger.info(f"Worker {worker_id} iniciado")
+
+    while True:
+        doc = queue.claim(worker_id)
+        if doc is None:
+            break
+
+        limiter.wait()
+        try:
+            html = WebScraper.fetch_html_once(doc['link'], DETAIL_READY_CSS)
+            key = html_key("anuncio", ad_id_from_url(doc['link']))
+            store.put_html(key, html)
+            queue.complete(doc["_id"], key)
+            stats["ok"] += 1
+            logger.info(f"[{worker_id}] {key}")
+        except Exception as e:
+            stats["errors"] += 1
+            final = queue.fail(
+                doc, str(e).strip().split("\n")[0], MAX_ATTEMPTS
+            )
+            logger.error(
+                f"[{worker_id}] erro em {doc['link']}: {e} "
+                f"({'desistiu' if final else 'nova tentativa depois'})"
+            )
+
+    logger.info(f"Worker {worker_id} finalizado: {stats}")
+    return stats
 
 
 def get_property():
     logger.info("---------------- SCRAPER LINKS ----------------")
-
-    mongo = MongoDB(
-        uri=get_secret_value('MONGO_URI')
-    )
-    store = ObjectStore()
-
-    b = 0
-    while True:
-        b += 1
-
-        logger.info(f"=> Batch {b}")
-        logger.info("Get documents in collection 'links_imoveis'")
-        docs = mongo.get_documents(
-            query={'scraper': {"$exists": False}},
-            collection='links_imoveis'
-        )
-
-        if len(docs) == 0:
-            break
-
-        list_id_error = defaultdict(list)
-
-        logger.info("Start Scraper")
-        for doc in docs[:BATCH_SIZE]:
-            try:
-                html = WebScraper.fetch_html_once(
-                    doc['link'], DETAIL_READY_CSS
-                )
-                key = html_key("anuncio", ad_id_from_url(doc['link']))
-                store.put_html(key, html)
-
-                mongo.update_documents(
-                    query={"_id": doc["_id"]},
-                    set={
-                        "$set": {
-                            "scraper": True,
-                            "html_key": key,
-                            "updated_dt": datetime.now().strftime(
-                                "%d-%m-%Y %H:%M:%S"
-                            ),
-                        }
-                    },
-                    collection='links_imoveis'
-                )
-                logger.info(f"- {key}")
-
-            except Exception as e:
-                logger.error(f"Erro em {doc['link']}: {e}")
-                list_id_error[
-                    str(e).strip().split("\n")[0]
-                ].append(doc['_id'])
-
-            sleep(PAUSE_SECONDS)
-
-        for error_type, ids_error in list_id_error.items():
-            mongo.update_documents(
-                query={"_id": {"$in": ids_error}},
-                set={
-                    "$set": {
-                        "scraper": True,
-                        "error": error_type,
-                        "updated_dt": datetime.now().strftime(
-                            "%d-%m-%Y %H:%M:%S"
-                        ),
-                    }
-                },
-                collection='links_imoveis'
-            )
+    worker_id = os.getenv("WORKER_ID") or f"{socket.gethostname()}-{os.getpid()}"
+    run_worker(worker_id, os.getenv("LINKS_COLLECTION", "links_imoveis"))
 
 
 if __name__ == '__main__':
