@@ -17,7 +17,9 @@ ITEMS = int(sys.argv[1]) if len(sys.argv) > 1 else 20
 INTERVAL = os.getenv("MIN_INTERVAL_SECONDS", "1.25")
 db = MongoClient(os.environ["MONGO_URI"])["real_state"]
 
-source = list(db.links_imoveis.find({"error": {"$exists": False}}, {"link": 1, "tipo": 1, "modo": 1}))
+source = list(db.links_imoveis.find(
+    {"error": {"$exists": False}}, {"link": 1, "tipo": 1, "modo": 1}
+))
 needed = ITEMS * 3
 assert len(source) >= needed, f"precisa de {needed} links, há {len(source)}"
 rows = []

@@ -9,6 +9,7 @@ from sqlalchemy.engine import make_url
 
 import os
 
+import psycopg2
 import pytest
 
 from scripts.etl.load.model import build_model
@@ -131,7 +132,10 @@ def test_lifecycle_view_tracks_price_change_and_time_on_market(uri):
     assert float(row["variacao_pct"]) == 50.0
     assert row["dias_no_mercado"] == 38  # 08/11/2026 - criado em 01/10/2026
     assert row["visto_na_ultima_coleta"] is True
-    assert scalar(uri, "SELECT visto_na_ultima_coleta FROM imovel_ciclo_vida WHERE id_imovel = 'h2'") is False
+    assert scalar(
+        uri,
+        "SELECT visto_na_ultima_coleta FROM imovel_ciclo_vida WHERE id_imovel = 'h2'",
+    ) is False
 
 
 def test_new_type_from_scraping_is_kept(uri):
@@ -144,7 +148,7 @@ def test_new_type_from_scraping_is_kept(uri):
 
 def test_failure_rolls_back_everything(uri):
     stage(uri, [imovel("h1", "preço inválido")])
-    with pytest.raises(Exception):
+    with pytest.raises(psycopg2.Error):
         build_model(uri)
 
     assert scalar(uri, "SELECT to_regclass('public.imovel') IS NULL") is True

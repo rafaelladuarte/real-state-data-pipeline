@@ -19,7 +19,7 @@ def restore_collections_from_json(db, directory="scripts/backup"):
         if filename.endswith(".json"):
             collection_name = filename.replace(".json", "")
             collection = db[collection_name]
-            with open(os.path.join(directory, filename), "r") as json_file:
+            with open(os.path.join(directory, filename)) as json_file:
                 data = json.load(json_file)
                 if data:
                     collection.insert_many(data)

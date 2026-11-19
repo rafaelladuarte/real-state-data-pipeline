@@ -4,7 +4,7 @@ Defina MONGO_TEST_URI (ex.: mongodb://username:password@localhost:27018/?authSou
 sem ele, os testes são ignorados. Usam o banco descartável `real_state_test`.
 """
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from time import monotonic
 
 import os
@@ -54,8 +54,8 @@ def test_claim_never_hands_same_link_twice(db):
 
 @pytestmark_mongo
 def test_expired_lease_is_reclaimed_and_valid_lease_is_not(db):
-    past = datetime.now(timezone.utc) - timedelta(seconds=5)
-    future = datetime.now(timezone.utc) + timedelta(seconds=300)
+    past = datetime.now(UTC) - timedelta(seconds=5)
+    future = datetime.now(UTC) + timedelta(seconds=300)
     db.links.insert_many([
         {"link": "expired", "lease_until": past},
         {"link": "busy", "lease_until": future},
@@ -104,7 +104,7 @@ def test_rate_limiter_spaces_requests_across_threads(db):
     with ThreadPoolExecutor(max_workers=3) as pool:
         times = sorted(pool.map(call, range(calls)))
 
-    gaps = [b - a for a, b in zip(times, times[1:])]
+    gaps = [b - a for a, b in zip(times, times[1:], strict=False)]
     # Intervalo global respeitado (tolerância para a latência das chamadas)
     assert min(gaps) >= interval * 0.7
     assert times[-1] - times[0] >= interval * (calls - 1) * 0.8
@@ -112,8 +112,8 @@ def test_rate_limiter_spaces_requests_across_threads(db):
 
 @pytestmark_mongo
 def test_requeue_stale_resets_only_old_or_unmarked_links(db):
-    old = datetime.now(timezone.utc) - timedelta(days=10)
-    recent = datetime.now(timezone.utc) - timedelta(days=1)
+    old = datetime.now(UTC) - timedelta(days=10)
+    recent = datetime.now(UTC) - timedelta(days=1)
     base = {"scraper": True, "html_key": "k", "parsed": True}
     db.links.insert_many([
         {"link": "old", "collected_at": old, **base},

@@ -19,8 +19,10 @@ def test_total_results():
 def test_listing_links_are_clean_unique_and_filtered():
     links = parse_listing_links(read("listing.html"))
     assert len(links) == 2
-    assert all(l.startswith("https://www.zapimoveis.com.br/imovel/") for l in links)
-    assert all("?" not in l for l in links)
+    assert all(
+        link.startswith("https://www.zapimoveis.com.br/imovel/") for link in links
+    )
+    assert all("?" not in link for link in links)
 
 
 def test_parse_property_fields():

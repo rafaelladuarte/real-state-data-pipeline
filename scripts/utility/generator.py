@@ -7,7 +7,7 @@ import random
 def generator_phone() -> str:
     digit = ["9"]
     phone = []
-    for i in range(0, 7):
+    for _ in range(7):
         digit += str(random.randint(0, 9))
     phone = "34" + ''.join(digit)
     return phone

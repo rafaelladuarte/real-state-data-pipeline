@@ -10,7 +10,7 @@ processos/containers diferentes (workers do Airflow):
 """
 from pymongo import MongoClient, ReturnDocument
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from time import sleep
 
 DB = "real_state"
@@ -24,7 +24,7 @@ def backoff_seconds(attempts: int) -> int:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class LinkQueue:
