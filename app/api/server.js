@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import pg from "pg";
+import { carregarChaves, normalizar } from "./bairros.js";
 
 const pool = new pg.Pool({
   connectionString:
@@ -10,6 +11,12 @@ const pool = new pg.Pool({
 
 const app = express();
 app.use(cors());
+
+// Polígonos do mapa (gerados por scripts/geo/): chave do nome -> { bairro, codigo, chaves }
+const POLIGONOS = carregarChaves(
+  process.env.BAIRROS_GEOJSON ||
+    new URL("../web/public/bairros-uberlandia.geojson", import.meta.url).pathname
+);
 
 // Consulta somente leitura sobre as views de scripts/etl/modeling/create_views_dash.sql
 const q = (sql, params = []) => pool.query(sql, params).then((r) => r.rows);
@@ -146,6 +153,57 @@ route("/api/destaques", async (req) => {
     modo: top.modo, ...geral, por_tipo: porTipo,
     dias_mediana: tempo?.dias_mediana ?? null, coletado_em: coleta?.coletado_em ?? null,
   };
+});
+
+// Mapa por bairro: uma linha por polígono com anúncios. Bairros do anúncio que não casam com
+// nenhum polígono ficam fora (ver scripts/geo/relatorio_cobertura.py). Média e mediana seguem
+// a regra dos gráficos: só com 3 ou mais anúncios, senão null.
+route("/api/mapa", async (req) => {
+  const { modo, tipo } = req.query;
+  const nomes = await q("SELECT DISTINCT bairro FROM endereco WHERE bairro IS NOT NULL");
+  const mapeamento = nomes.flatMap(({ bairro }) => {
+    const p = POLIGONOS.get(normalizar(bairro));
+    return p ? [{ bairro, poligono: p.bairro }] : [];
+  });
+  const params = [modo || null, tipo || null, JSON.stringify(mapeamento)];
+  const [precos, tempos] = await Promise.all([
+    q(
+      `WITH m AS (SELECT * FROM json_to_recordset($3::json) AS m(bairro text, poligono text))
+       SELECT m.poligono AS bairro, COUNT(*)::int AS quantidade,
+              ROUND(AVG(i.preco))::float AS preco_medio
+       FROM imovel i
+       JOIN endereco e ON e.id_endereco = i.id_endereco_imovel
+       JOIN m ON m.bairro = e.bairro
+       JOIN tipo_imovel t ON t.id_tipo = i.id_tipo_imovel
+       JOIN modo_imovel mo ON mo.id_modo = i.id_modo_imovel
+       WHERE ($1::text IS NULL OR mo.modo = $1) AND ($2::text IS NULL OR t.tipo = $2)
+       GROUP BY m.poligono`,
+      params
+    ),
+    q(
+      `WITH m AS (SELECT * FROM json_to_recordset($3::json) AS m(bairro text, poligono text))
+       SELECT m.poligono AS bairro, COUNT(*)::int AS quantidade,
+              ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY c.dias_no_mercado))::int AS dias_mediana
+       FROM imovel_ciclo_vida c JOIN m ON m.bairro = c.bairro
+       WHERE c.dias_no_mercado >= 0
+         AND ($1::text IS NULL OR c.modo = $1) AND ($2::text IS NULL OR c.tipo = $2)
+       GROUP BY m.poligono`,
+      params
+    ),
+  ]);
+  const dias = new Map(tempos.map((t) => [t.bairro, t]));
+  return precos
+    .map((p) => {
+      const t = dias.get(p.bairro);
+      return {
+        bairro: p.bairro,
+        chave: normalizar(p.bairro),
+        quantidade: p.quantidade,
+        media_preco: p.quantidade >= 3 ? p.preco_medio : null,
+        dias_mediana: t && t.quantidade >= 3 ? t.dias_mediana : null,
+      };
+    })
+    .sort((a, b) => b.quantidade - a.quantidade);
 });
 
 route("/api/preco-modo-tipo", () =>

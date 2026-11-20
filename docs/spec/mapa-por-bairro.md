@@ -172,6 +172,6 @@ Nova seção do app, no padrão editorial das existentes (kicker, título que mu
 
 1. ~~Comparar as fontes de contorno e escolher uma~~ (feito, seção 3).
 2. ~~`scripts/geo/` + GeoJSON + relatório de cobertura + testes~~ (feito: 75 bairros, 70 KB, 94,7% de cobertura, 15 testes).
-3. Rota `/api/mapa`.
+3. ~~Rota `/api/mapa`~~ (feita: `app/api/server.js` + `app/api/bairros.js`, valores conferidos contra `/api/preco-medio` e `/api/tempo-mercado`).
 4. Componente `Mapa` e a seção no app, com tabela e temas.
 5. Documentação e novas capturas de tela para o README.

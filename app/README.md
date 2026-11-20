@@ -19,7 +19,7 @@ cd app/web && npm install && npm run dev
 ## Endpoints
 
 `/api/destaques` (números do topo: medianas por modo e tipo), `/api/resumo`, `/api/bairros`, `/api/preco-medio?modo=&tipo=`, `/api/tempo-mercado?modo=&tipo=`,
-`/api/variacao-preco`, `/api/preco-modo-tipo`, `/api/faixa-area`, `/api/dispersao`, `/api/filtros`,
+`/api/mapa?modo=&tipo=` (uma linha por bairro com polígono, sem limite; média e mediana só com 3 ou mais anúncios, senão `null`), `/api/variacao-preco`, `/api/preco-modo-tipo`, `/api/faixa-area`, `/api/dispersao`, `/api/filtros`,
 `/api/imoveis?modo=&tipo=&bairro=&quartos=`
 
 Todos os endpoints aceitam `?modo=aluguel|venda` (a página inteira é filtrada pelo seletor do topo). Preço médio e tempo no mercado por bairro só consideram bairros com pelo menos 3 anúncios.
