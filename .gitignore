@@ -172,3 +172,4 @@ app/web/dist/
 secrets/
 airflow_home/
 .env.bak
+!infra/pgadmin/servers.json

@@ -51,12 +51,12 @@ As decisões de arquitetura e as alternativas descartadas estão em [docs/ARCHIT
 
 ## A arquitetura funcionando
 
-Capturas das próprias ferramentas, com os dados reais da coleta de 19/11/2026: o HTML bruto no storage, as coleções e as métricas de qualidade no MongoDB, as tabelas e a view de ciclo de vida no PostgreSQL e a esteira rodando no terminal.
+Capturas reais da tela das ferramentas do `docker-compose.yml`, com os dados da coleta de 19/11/2026: o HTML bruto no console do RustFS, as coleções e as métricas de qualidade no Mongo Express, e as tabelas e a view de ciclo de vida no pgAdmin. Os mesmos serviços sobem na sua máquina (veja [Como executar](#como-executar)).
 
 <table>
     <tr><td width="50%"><img src="docs/images/capturas/storage-s3.png" alt="HTML bruto no storage S3 (bronze)"></td><td width="50%"><img src="docs/images/capturas/mongo-colecoes.png" alt="Coleções do MongoDB (silver)"></td></tr>
-    <tr><td width="50%"><img src="docs/images/capturas/mongo-qualidade.png" alt="Métricas de qualidade no MongoDB"></td><td width="50%"><img src="docs/images/capturas/postgres-tabelas.png" alt="Tabelas e views no PostgreSQL (gold)"></td></tr>
-    <tr><td width="50%"><img src="docs/images/capturas/postgres-view.png" alt="View imovel_ciclo_vida"></td><td width="50%"><img src="docs/images/capturas/terminal-pipeline.png" alt="A esteira em execução"></td></tr>
+    <tr><td width="50%"><img src="docs/images/capturas/mongo-qualidade.png" alt="Métricas de qualidade no MongoDB"></td><td width="50%"><img src="docs/images/capturas/postgres-tabelas.png" alt="Tabelas do modelo no pgAdmin (gold)"></td></tr>
+    <tr><td colspan="2"><img src="docs/images/capturas/postgres-view.png" alt="View imovel_ciclo_vida consultada no Query Tool do pgAdmin"></td></tr>
 </table>
 
 ## Resultados medidos
@@ -135,6 +135,7 @@ Detalhes em [app/README.md](app/README.md).
 | Armazenamento | MongoDB (silver), PostgreSQL (gold), storage S3-compatível RustFS (bronze) |
 | App | Express, React, Vite, Recharts, d3-geo |
 | Infra | Docker, Docker Compose |
+| Inspeção | pgAdmin (Postgres), Mongo Express (Mongo), console do RustFS (S3) |
 | Qualidade | pytest, ruff |
 
 ## Estrutura do repositório
@@ -157,6 +158,7 @@ Detalhes em [app/README.md](app/README.md).
 │   ├── api/                    # API Express somente leitura
 │   └── web/                    # Frontend React (Vite)
 ├── tests/                      # pytest (unidade e integração) e HTML de exemplo
+├── infra/pgadmin/              # servers.json: servidor do Postgres já registrado no pgAdmin
 ├── docs/                       # arquitetura, backlog, especificações (spec/), experimentos, imagens e diagramas
 ├── docker-compose.yml
 ├── Dockerfile.airflow
@@ -177,6 +179,20 @@ docker compose up -d real_state_postgres mongo object_store
 ```
 
 Sobe Postgres (porta 5434), MongoDB (27017) e o storage S3 (9000, console em 9001). Todos usam `username` / `password` no ambiente local.
+
+Para inspecionar os dados pelo navegador, suba também as interfaces:
+
+```bash
+docker compose --profile tools up -d pgadmin mongo_express
+```
+
+| Ferramenta | Endereço | Acesso |
+|---|---|---|
+| pgAdmin | http://localhost:5050 | `admin@email.com` / `admin`; o servidor `real_state (gold)` já vem registrado e pede a senha `password` |
+| Mongo Express | http://localhost:8082 | sem login |
+| Console do RustFS | http://localhost:9001 | `username` / `password` |
+
+Se o servidor não aparecer no pgAdmin, importe-o com `docker compose exec pgadmin /venv/bin/python3 /pgadmin4/setup.py load-servers /pgadmin4/servers.json --user admin@email.com`.
 
 ### 2. Ambiente Python e variáveis
 
@@ -294,7 +310,7 @@ pytest
 - [docs/BACKLOG.md](docs/BACKLOG.md): melhorias em andamento e planejadas.
 - [docs/spec/mapa-por-bairro.md](docs/spec/mapa-por-bairro.md): especificação do mapa por bairro (fonte do contorno, cobertura medida e critérios de aceite).
 - [app/README.md](app/README.md): app de visualização e endpoints da API.
-- `docs/diagrams/`: scripts que geram os diagramas (`build_diagrams.py`) e as capturas (`build_captures.py`) na mesma identidade visual do app.
+- `docs/diagrams/`: scripts que geram os diagramas (`build_diagrams.py`) e as capturas (`build_captures.py`) na mesma identidade visual do app. As capturas usam as ferramentas reais do compose (`docker compose --profile tools up -d`, com dados carregados).
 
 ## Autor
 

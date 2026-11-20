@@ -1,8 +1,9 @@
 """Captura as ferramentas reais (storage, Mongo, Postgres) e as coloca em molduras do app.
 
 Uso: python docs/diagrams/build_captures.py
-Requer, no ar: RustFS (9001), Mongo Express (8082) e Adminer (8083), apontando para os bancos
-do projeto (veja o README). Saída em docs/images/capturas/.
+Requer, no ar e com dados: RustFS (9001), Mongo Express (8082) e pgAdmin (5050), todos do
+docker-compose.yml (`docker compose --profile tools up -d`). Saída em docs/images/capturas/.
+Todas as imagens são capturas reais da tela dessas ferramentas, dentro de uma moldura do app.
 """
 import base64
 import io
@@ -11,35 +12,14 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from selenium.webdriver.common.action_chains import ActionChains  # noqa: E402
 from selenium.webdriver.common.by import By  # noqa: E402
+from selenium.webdriver.common.keys import Keys  # noqa: E402
 from theme import IMAGES, open_browser, page, render, screenshot  # noqa: E402
 
 OUT = IMAGES / "capturas"
-ADMINER = "http://localhost:8083/?pgsql=host.docker.internal%3A5434&username=username&db=real_state"
-
-# Saída real de uma execução (19/11/2026), usada na imagem de terminal
-TERMINAL = [
-    ("cmd", "docker ps"),
-    ("dim", "NAMES                 IMAGE           STATUS"),
-    ("out", "real_state_postgres   postgres:13     Up 2 hours"),
-    ("out", "real_state_mongo      mongo:7.0       Up 2 hours"),
-    ("out", "real_state_minio      rustfs/rustfs   Up About an hour"),
-    ("gap", ""),
-    ("cmd", "WORKER_ID=w1 python scripts/etl/extraction/property.py &"),
-    ("cmd", "WORKER_ID=w2 python scripts/etl/extraction/property.py &"),
-    ("out", "15:48:10 INFO  Worker w1 iniciado"),
-    ("out", "15:48:12 INFO  [w2] anuncio/2026-11-19/2912557103.html.gz"),
-    ("out", "15:48:16 INFO  [w1] anuncio/2026-11-19/2912889421.html.gz"),
-    ("out", "15:48:19 INFO  [w2] anuncio/2026-11-19/2904909009.html.gz"),
-    ("out", "15:48:21 INFO  [w1] anuncio/2026-11-19/2905368929.html.gz"),
-    ("gap", ""),
-    ("cmd", "python scripts/etl/extraction/parse_property.py"),
-    ("out", "INFO  147 HTMLs para processar (reprocess=False)"),
-    ("ok", "INFO  Qualidade: 147 ok, 0 erros, nulos {}"),
-    ("gap", ""),
-    ("cmd", "python scripts/etl/load/model.py"),
-    ("ok", "INFO  Modelagem aplicada"),
-]
+PGADMIN = "http://localhost:5050"
+PG_SERVER = "real_state (gold)"
 
 FIGURES = [
     ("storage-s3", "Bronze · storage S3", "HTML bruto, comprimido",
@@ -51,12 +31,14 @@ FIGURES = [
     ("mongo-qualidade", "Silver · qualidade", "Cada execução deixa suas métricas",
      "O parsing registra o total, os erros e a taxa de campos vazios antes de gravar. "
      "Aqui: 125 e 147 anúncios, 0 erros e 0% de nulos.", "Mongo Express · run_metrics"),
-    ("postgres-tabelas", "Gold · PostgreSQL", "Tabelas e views do modelo",
-     "Dimensões, o fato imovel, o histórico imovel_snapshot, o staging _treat_* e as 9 views de análise.",
-     "Adminer · schema public"),
+    ("postgres-tabelas", "Gold · PostgreSQL", "Tabelas do modelo",
+     "Dimensões, o fato imovel, o histórico imovel_snapshot e o staging _treat_*, com a contagem de "
+     "linhas de cada tabela (438 imóveis, 62 imobiliárias).",
+     "pgAdmin · localhost:5050"),
     ("postgres-view", "Gold · PostgreSQL", "A view imovel_ciclo_vida",
-     "Calcula primeira e última coleta, dias no mercado e variação de preço de cada anúncio (438 registros).",
-     "Adminer · imovel_ciclo_vida"),
+     "Calcula dias no mercado e variação de preço de cada anúncio. Aqui, os 10 anúncios há mais tempo "
+     "no mercado, consultados no Query Tool.",
+     "pgAdmin · Query Tool"),
 ]
 
 FIG_CSS = """
@@ -69,15 +51,6 @@ FIG_CSS = """
 .bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--axis); }
 .bar span { margin-left: 14px; font-size: 12.5px; color: var(--ink-2); }
 .win img { display: block; width: 100%; }
-.term { background: #1d1513; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 56px rgba(80, 40, 25, 0.22); }
-.term .bar { background: #2b201d; }
-.term .bar i { background: #4a3a35; }
-.term .bar span { color: #c9b6ad; }
-.term pre { margin: 0; padding: 22px 26px 26px; font-size: 14px; line-height: 1.7; color: #f6ece6; }
-.term .cmd::before { content: "$ "; color: #e2634d; font-weight: 700; }
-.term .cmd { color: #fff; font-weight: 600; }
-.term .dim { color: #9c8a82; }
-.term .ok { color: #f08a74; }
 """
 
 
@@ -138,20 +111,67 @@ def capture(raw: dict[str, "Image"]) -> None:  # noqa: F821
     finally:
         d.quit()
 
-    # Adminer: tabelas e a view de ciclo de vida
-    d = open_browser(1500, 900)
+    # pgAdmin: estatísticas das tabelas e a view de ciclo de vida (Query Tool)
+    d = open_browser(1700, 1200)
     try:
-        d.get(ADMINER)
-        time.sleep(1.5)
-        d.find_element(By.NAME, "auth[password]").send_keys("password")
-        d.find_element(By.CSS_SELECTOR, "input[type=submit]").click()
+        d.get(f"{PGADMIN}/login")
+        time.sleep(4)
+        d.find_element(By.NAME, "email").send_keys("admin@email.com")
+        d.find_element(By.NAME, "password").send_keys("admin")
+        d.find_element(By.CSS_SELECTOR, "button[type=submit]").click()
+        time.sleep(8)
+
+        def row(label: str, exact: bool = False):
+            xp = (f"//*[normalize-space(text())='{label}']" if exact
+                  else f"//*[starts-with(normalize-space(text()),'{label}')]")
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                found = [e for e in d.find_elements(By.XPATH, xp) if e.is_displayed()]
+                if found:
+                    return found[0]
+                time.sleep(0.5)
+            raise RuntimeError(f"'{label}' não apareceu no pgAdmin")
+
+        def open_node(label: str, exact: bool = False) -> None:
+            row(label, exact).click()
+            time.sleep(1)
+            ActionChains(d).send_keys(Keys.ARROW_RIGHT).perform()
+            time.sleep(3)
+
+        open_node("Servers", exact=True)
+        ActionChains(d).double_click(row(PG_SERVER, exact=True)).perform()
+        time.sleep(3)
+        if d.find_elements(By.XPATH, "//*[normalize-space(text())='Connect to Server']"):
+            ActionChains(d).send_keys("password").send_keys(Keys.ENTER).perform()  # senha local do compose
+            time.sleep(5)
+        row("Login/Group Roles").click()
+        ActionChains(d).send_keys(Keys.ARROW_LEFT).perform()
+        time.sleep(1)
+        open_node("Databases")
+        open_node("real_state", exact=True)
+        open_node("Schemas")
+        open_node("public", exact=True)
+        open_node("Tables")
+        row("Tables").click()
         time.sleep(2)
-        d.get(ADMINER + "&ns=public")
-        time.sleep(1.5)
-        raw["postgres-tabelas"] = screenshot(d, (0, 0, 1500, 760))
-        d.get(ADMINER + "&ns=public&select=imovel_ciclo_vida&limit=8")
-        time.sleep(2)
-        raw["postgres-view"] = screenshot(d, (0, 0, 1500, 620))
+        d.find_element(By.XPATH, "//*[normalize-space(text())='Statistics']").click()
+        time.sleep(3)
+        raw["postgres-tabelas"] = screenshot(d, (0, 0, 1700, 640))
+
+        # Query Tool sobre o banco real_state
+        row("real_state", exact=True).click()
+        time.sleep(1)
+        d.find_element(By.XPATH, "//*[normalize-space(text())='Tools']").click()
+        time.sleep(1)
+        d.find_element(By.XPATH, "//*[normalize-space(text())='Query Tool']").click()
+        time.sleep(6)
+        sql = ("SELECT bairro, modo, preco_atual, variacao_pct, dias_no_mercado FROM imovel_ciclo_vida "
+               "ORDER BY dias_no_mercado DESC NULLS LAST LIMIT 10;")
+        ActionChains(d).send_keys(sql).perform()
+        time.sleep(1)
+        ActionChains(d).send_keys(Keys.F5).perform()
+        time.sleep(5)
+        raw["postgres-view"] = screenshot(d, (0, 0, 1700, 1130))
     finally:
         d.quit()
 
@@ -180,19 +200,6 @@ def main() -> None:
         size = render(page(figure_html(kicker, title, text, url, body), FIG_CSS, False, width),
                       OUT / f"{name}.png", width, scale=1.5)
         print(OUT.relative_to(IMAGES.parent.parent) / f"{name}.png", size)
-
-    lines = "\n".join(
-        f"<span class='{kind}'>{text}</span>" if kind != "gap" else "" for kind, text in TERMINAL
-    )
-    body = (
-        "<div class='term'><div class='bar'><i></i><i></i><i></i><span class='mono'>terminal · saída real de "
-        f"uma execução</span></div><pre class='mono'>{lines}</pre></div>"
-    )
-    text = ("Dois workers em paralelo guardam o HTML, o parsing passa pelo gate de qualidade e a modelagem "
-            "é aplicada em uma transação.")
-    size = render(page(figure_html("Orquestração", "A esteira em execução", text, "", body), FIG_CSS, False, width),
-                  OUT / "terminal-pipeline.png", width, scale=1.5)
-    print(OUT.relative_to(IMAGES.parent.parent) / "terminal-pipeline.png", size)
 
 
 if __name__ == "__main__":

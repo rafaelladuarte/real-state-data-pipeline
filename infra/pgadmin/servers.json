@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "real_state (gold)",
+      "Group": "Servers",
+      "Host": "real_state_postgres",
+      "Port": 5432,
+      "MaintenanceDB": "real_state",
+      "Username": "username",
+      "SSLMode": "prefer"
+    }
+  }
+}
