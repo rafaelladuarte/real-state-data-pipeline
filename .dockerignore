@@ -1,0 +1,35 @@
+# Contexto de build da imagem do Airflow (raiz): o Dockerfile.airflow só copia dags/.
+# Sem este arquivo o Docker envia ao daemon o repositório inteiro, inclusive .env e .venv.
+# Atenção: ao contrário do .gitignore, os padrões só valem na raiz do contexto;
+# por isso os `**/`, que também pegam as subpastas.
+
+# Segredos e credenciais
+**/.env
+**/.env.*
+!**/.env.example
+secrets
+**/client_secrets.json
+**/credentials*.json
+**/service_account*.json
+**/token*.json
+**/*.pem
+**/*.key
+**/*.p12
+
+# Tudo o que a imagem não usa
+.git
+.github
+.venv
+.vscode
+**/node_modules
+app
+docs
+tests
+scripts
+logs
+plugins
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache

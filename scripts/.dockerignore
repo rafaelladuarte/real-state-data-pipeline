@@ -1,0 +1,28 @@
+# Contexto de build da imagem de ETL (scripts/): o Dockerfile faz `COPY . /app/scripts`.
+# Segredos (MONGO_URI, POSTGRESQL_URI, ...) são injetados em tempo de execução e
+# nunca devem entrar na imagem.
+# Atenção: ao contrário do .gitignore, os padrões só valem na raiz do contexto;
+# por isso os `**/`, que também pegam as subpastas.
+
+# Segredos e credenciais (não usar *secret*: scripts/infra/security/secrets.py é código)
+**/.env
+**/.env.*
+!**/.env.example
+**/client_secrets.json
+**/credentials*.json
+**/service_account*.json
+**/token*.json
+**/*.pem
+**/*.key
+**/*.p12
+
+# Lixo de desenvolvimento
+.git
+.gitignore
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache

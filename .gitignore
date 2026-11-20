@@ -158,6 +158,8 @@ app/web/dist/
 !app/api/package-lock.json
 !app/web/package.json
 !app/web/package-lock.json
+# Dados versionados do mapa (a regra *.json acima os esconderia)
+!scripts/geo/apelidos_bairros.json
 
 # Dependências da imagem de ETL
 !scripts/requirements.txt
