@@ -219,9 +219,9 @@ function ChartBlock({ state, columns, caption, children }) {
 
 /* ---------- Estrutura editorial ---------- */
 
-function Section({ kicker, title, lede, aside, children }) {
+function Section({ id, kicker, title, lede, aside, children }) {
   return (
-    <section className="section">
+    <section className="section" id={id}>
       <div className="split">
         <div className="split-text">
           <span className="kicker">{kicker}</span>
@@ -235,9 +235,9 @@ function Section({ kicker, title, lede, aside, children }) {
   );
 }
 
-function FullSection({ kicker, title, lede, children }) {
+function FullSection({ id, kicker, title, lede, children }) {
   return (
-    <section className="section section--full">
+    <section className="section section--full" id={id}>
       <div className="head">
         <span className="kicker">{kicker}</span>
         <h2>{figures(title)}</h2>
@@ -306,6 +306,7 @@ function PrecoPorBairro({ modo }) {
   const top = state.data?.[0];
   return (
     <Section
+      id="preco"
       kicker="01 · Preço"
       title={top ? `${top.bairro} lidera, com média de ${brl(top.media_preco)}` : "Onde o preço pesa mais"}
       lede="Preço médio por bairro, só com 3 ou mais anúncios, para um imóvel isolado não distorcer o resultado."
@@ -339,6 +340,7 @@ function Anuncios({ total, modo }) {
   const share = top && total ? Math.round((100 * top.quantidade) / total) : null;
   return (
     <Section
+      id="oferta"
       kicker="02 · Oferta"
       title={
         !top ? "Onde estão os anúncios"
@@ -363,6 +365,7 @@ function IdadeDoAnuncio({ mediana, modo }) {
   const state = useApi(`/api/tempo-mercado?modo=${modo}`);
   return (
     <Section
+      id="tempo"
       kicker="03 · Tempo"
       title={mediana == null ? "Quanto tempo um anúncio fica no ar" : `Metade dos anúncios tem até ${mediana} dias`}
       lede="Dias entre a criação do anúncio e a coleta, mediana por bairro (3 ou mais anúncios). Mede a idade do anúncio, não quanto tempo ele leva para sair."
@@ -388,6 +391,7 @@ function PrecoETamanho({ modo }) {
   const fmtPreco = maxPreco >= 10000 ? brlCompact : brl;
   return (
     <FullSection
+      id="tamanho"
       kicker="04 · Tamanho"
       title="Preço e metragem, anúncio por anúncio"
       lede="Cada ponto é um anúncio. Passe o cursor para ver o valor e a área."
@@ -437,6 +441,7 @@ function VariacaoDePreco({ modo }) {
         : `${varia.length} anúncios mudaram de preço`;
   return (
     <FullSection
+      id="variacao"
       kicker="05 · Variação"
       title={title}
       lede="Cada nova coleta guarda o preço do anúncio naquele dia, o que permite acompanhar reajustes."
@@ -495,6 +500,7 @@ function MapaDeBairros({ modo }) {
   const { legenda } = useMemo(() => faixas([...linhas.values()].map((l) => l.valor)), [linhas]);
   return (
     <Section
+      id="mapa"
       kicker="06 · Mapa"
       title={topo ? m.titulo(topo) : "Onde fica cada bairro"}
       lede="Cada bairro pintado pela métrica escolhida. Preço e idade só aparecem com 3 ou mais anúncios; bairros sem contorno oficial (loteamentos e condomínios) ficam fora do mapa."
@@ -548,7 +554,8 @@ function ListaDeAnuncios({ modo }) {
   const state = useApi(`/api/imoveis?${qs}`);
   const rows = state.data ?? [];
   return (
-    <FullSection kicker="07 · Anúncios" title="Veja os anúncios, um a um" lede="Os 50 mais recentemente atualizados que combinam com a busca.">
+    <FullSection id="anuncios"
+      kicker="07 · Anúncios" title="Veja os anúncios, um a um" lede="Os 50 mais recentemente atualizados que combinam com a busca.">
       <div className="filters" style={{ marginTop: 0, marginBottom: 20 }}>
         <input aria-label="Buscar por bairro" placeholder="Buscar bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
         <input
@@ -579,6 +586,84 @@ function ListaDeAnuncios({ modo }) {
   );
 }
 
+/* ---------- Índice de seções ---------- */
+
+const SECOES = [
+  ["preco", "Preço"], ["oferta", "Oferta"], ["tempo", "Tempo"], ["tamanho", "Tamanho"],
+  ["variacao", "Variação"], ["mapa", "Mapa"], ["anuncios", "Anúncios"],
+];
+const LIMIAR_ROLAGEM = 140; // px abaixo do topo a partir do qual a seção conta como atual
+
+/* Telas largas: coluna à esquerda. Demais: faixa fixa abaixo do topo, com rolagem lateral. */
+function IndiceSecoes() {
+  const [atual, setAtual] = useState(null);
+  useEffect(() => {
+    let quadro = 0;
+    const calcular = () => {
+      quadro = 0;
+      let achada = null;
+      for (const [id] of SECOES) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= LIMIAR_ROLAGEM) achada = id;
+      }
+      setAtual(achada);
+    };
+    const agendar = () => { if (!quadro) quadro = requestAnimationFrame(calcular); };
+    window.addEventListener("scroll", agendar, { passive: true });
+    window.addEventListener("resize", agendar);
+    // A altura do topo varia (fonte, largura): o índice e o recuo dos títulos usam o valor medido
+    const topo = document.querySelector(".topbar-wrap");
+    const medirTopo = () =>
+      document.documentElement.style.setProperty("--topbar-h", `${topo.offsetHeight}px`);
+    const observador = new ResizeObserver(medirTopo);
+    observador.observe(topo);
+    medirTopo();
+    // Link com #secao: o conteúdo das seções carrega depois e empurra o alvo para baixo.
+    // Realinha por alguns segundos, e para assim que a pessoa rolar por conta própria.
+    const alvo = window.location.hash.slice(1);
+    const timers = [];
+    const parar = () => timers.forEach(clearTimeout);
+    if (alvo) {
+      [0, 400, 1000, 2000, 3500].forEach((ms) => timers.push(setTimeout(
+        () => document.getElementById(alvo)?.scrollIntoView({ behavior: "instant" }), ms,
+      )));
+      ["wheel", "touchstart", "keydown"].forEach((e) => window.addEventListener(e, parar, { once: true }));
+    }
+    calcular();
+    return () => {
+      window.removeEventListener("scroll", agendar);
+      window.removeEventListener("resize", agendar);
+      cancelAnimationFrame(quadro);
+      observador.disconnect();
+      parar();
+    };
+  }, []);
+
+  /* Na faixa horizontal, mantém o item atual à vista sem mexer na rolagem da página */
+  useEffect(() => {
+    const item = document.querySelector(".indice a[aria-current]");
+    const faixa = item?.closest(".indice-lista");
+    if (faixa && faixa.scrollWidth > faixa.clientWidth) {
+      faixa.scrollTo({ left: item.offsetLeft - (faixa.clientWidth - item.offsetWidth) / 2 });
+    }
+  }, [atual]);
+
+  return (
+    <nav className="indice" aria-label="Seções da página">
+      <ol className="indice-lista">
+        {SECOES.map(([id, nome], i) => (
+          <li key={id}>
+            <a href={`#${id}`} aria-current={atual === id ? "location" : undefined}>
+              <span className="indice-num">{String(i + 1).padStart(2, "0")}</span>
+              {nome}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
 export default function App() {
   const filtros = useApi("/api/filtros");
   const modos = sortModos(filtros.data?.modos ?? []);
@@ -599,6 +684,7 @@ export default function App() {
           <ThemeToggle />
         </div>
       </div>
+      {modo && <IndiceSecoes />}
       <div className="wrap">
         {!modo ? (
           <p className="msg">{filtros.error ? "Não foi possível carregar." : "Carregando…"}</p>
