@@ -6,18 +6,22 @@ from pymongo import MongoClient, InsertOne, errors
 logger = get_logger(__name__)
 
 
+DEFAULT_DB = "real_state"
+
+
 class MongoDB:
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, db: str = DEFAULT_DB):
         self._uri = uri
         # Um cliente por instância (pool de conexões interno do pymongo)
         self._client = MongoClient(uri)
+        self._db = self._client[db]
 
     def insert_documents(
         self,
         documents: list,
         collection: str
     ) -> None:
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         documents = [{**doc, '_id': ObjectId()} for doc in documents]
 
@@ -34,7 +38,7 @@ class MongoDB:
         if not documents:
             return
 
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         documents = [{**doc, '_id': ObjectId()} for doc in documents]
 
@@ -66,7 +70,7 @@ class MongoDB:
         collection: str,
         limit: int = 0
     ) -> list[dict]:
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         cursor = coll.find(query)
         if limit:
@@ -83,7 +87,7 @@ class MongoDB:
         set: dict,
         collection: str
     ) -> None:
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         coll.update_many(query, set)
 
@@ -92,7 +96,7 @@ class MongoDB:
         query: dict,
         collection: str
     ) -> int:
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         return coll.delete_many(query).deleted_count
 
@@ -102,7 +106,7 @@ class MongoDB:
         set: dict,
         collection: str
     ) -> None:
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         coll.update_one(query, set)
 
@@ -111,7 +115,7 @@ class MongoDB:
         pipeline: list,
         collection: str
     ) -> list[dict]:
-        coll = self._client["real_state"][collection]
+        coll = self._db[collection]
 
         cursor = coll.aggregate(pipeline)
 
@@ -125,7 +129,7 @@ class MongoDB:
         self,
         list_url: list,
     ) -> list[str]:
-        coll = self._client['real_state']['imobiliarias']
+        coll = self._db['imobiliarias']
 
         existing_mobi_url = coll.distinct(
             "id_imobiliaria",
@@ -149,7 +153,7 @@ class MongoDB:
             flag: str,
             collection: str
     ) -> list[dict]:
-        coll = self._client['real_state'][collection]
+        coll = self._db[collection]
 
         cursor = coll.distinct(key=flag)
         data = cursor[:50]
@@ -157,24 +161,28 @@ class MongoDB:
         return data
 
     def distinct_values(self, field: str, collection: str) -> list:
-        return self._client['real_state'][collection].distinct(field)
+        return self._db[collection].distinct(field)
 
     def close(self) -> None:
         self._client.close()
 
     def list_collection_names(self) -> list[str]:
-        database = self._client['real_state']
+        database = self._db
 
         data = database.list_collection_names()
 
         return data
+
+    def create_plain_index(self, collection: str, field: str) -> None:
+        """Índice comum (não único) para consultas por campo, como batch_id."""
+        self._db[collection].create_index([(field, 1)])
 
     def create_hash_index(
         self,
         collection: str,
         hash: str
     ) -> None:
-        coll = self._client['real_state'][collection]
+        coll = self._db[collection]
 
         indexs_exists = coll.index_information()
 

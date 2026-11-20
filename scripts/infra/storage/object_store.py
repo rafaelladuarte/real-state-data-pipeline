@@ -2,7 +2,9 @@
 (RustFS no docker-compose; o cliente é o `minio`, que fala o protocolo S3).
 
 Chave: <tipo>/<AAAA-MM-DD>/<id>.html.gz  (tipo: "anuncio" ou "listagem").
-Permite reprocessar o parsing sem acessar o site de novo.
+Permite reprocessar o parsing sem acessar o site de novo, enquanto o HTML existir:
+depois que o lote é carregado no Postgres, `purge_html.py` apaga o HTML (delete e
+delete_many) para o disco não crescer com cada coleta.
 """
 from datetime import date
 
@@ -65,3 +67,28 @@ class ObjectStore:
         finally:
             response.close()
             response.release_conn()
+
+    def delete(self, key: str) -> None:
+        """Apaga um objeto. Apagar o que já não existe não é erro (S3)."""
+        self._client.remove_object(self._bucket, key)
+
+    def delete_many(self, keys: list[str]) -> int:
+        """Apaga vários objetos de uma vez. Levanta erro se algum falhar.
+
+        Devolve quantas chaves foram enviadas para remoção.
+        """
+        keys = list(keys)
+        if not keys:
+            return 0
+
+        from minio.deleteobjects import DeleteObject
+
+        # remove_objects é preguiçoso: só apaga quando o resultado é consumido
+        errors = list(self._client.remove_objects(
+            self._bucket, [DeleteObject(key) for key in keys]
+        ))
+        if errors:
+            raise RuntimeError(
+                f"{len(errors)} de {len(keys)} objetos não foram apagados: {errors[0]}"
+            )
+        return len(keys)

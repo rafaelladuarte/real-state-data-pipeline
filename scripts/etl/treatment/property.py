@@ -1,3 +1,4 @@
+from scripts.etl.batch import current_batch_id
 from scripts.utility.log import get_logger
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.security.secrets import get_secret_value
@@ -28,6 +29,8 @@ MAX_TREAT_ATTEMPTS = int(os.getenv("MAX_TREAT_ATTEMPTS", "3"))
 
 def treat_property():
     logger.info("---------------- TREATMENT PROPERTY ----------------")
+    batch_id = current_batch_id()
+    logger.info(f"Lote deste tratamento: {batch_id}")
 
     mongo = MongoDB(
         uri=get_secret_value('MONGO_URI')
@@ -93,7 +96,7 @@ def treat_property():
 
                 # Toda observação gera um snapshot de preço (histórico)
                 snapshots.append(build_snapshot(
-                    unique_hash, price, condo, iptu, data_coleta
+                    unique_hash, price, condo, iptu, data_coleta, batch_id
                 ))
 
                 if unique_hash in known_hashes:
@@ -131,7 +134,8 @@ def treat_property():
                         "data_cadastro": data_cadastro,
                         "data_atualizacao": data_atualizacao,
                         "data_coleta_imovel": data_coleta,
-                        "hash": unique_hash
+                        "hash": unique_hash,
+                        "batch_id": batch_id,
                     }
                 )
 
@@ -167,6 +171,9 @@ def treat_property():
                 set={
                     "$set": {
                         "treat": True,
+                        # Liga o HTML ao lote: só é apagado depois que o lote
+                        # estiver carregado no Postgres (purge_html.py)
+                        "batch_id": batch_id,
                         "updated_dt": datetime.now().strftime(
                             "%d-%m-%Y %H:%M:%S"
                         )

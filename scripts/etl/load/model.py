@@ -3,7 +3,15 @@
 Executa, em UMA transação, todos os arquivos SQL de scripts/etl/modeling na
 ordem correta. Todos são idempotentes (IF NOT EXISTS, OR REPLACE, upsert), então
 reexecutar não duplica dados; se algo falhar, nada é aplicado.
+
+Carga incremental: o staging contém só os lotes pendentes (veja staging.py). Na
+mesma transação, ao final, os lotes aplicados são registrados em `lote_carga` e
+o staging é esvaziado; se algo falhar, o staging e o registro ficam como estavam.
 """
+from scripts.etl.load.staging import (
+    ensure_batch_column, ensure_control_table, record_loaded_and_clear,
+    take_load_lock,
+)
 from scripts.infra.security.secrets import get_secret_value
 from scripts.utility.log import get_logger
 
@@ -50,13 +58,20 @@ def build_model(uri: str | None = None) -> None:
     connection = engine.raw_connection()
     try:
         cursor = connection.cursor()
+        take_load_lock(cursor)
+        ensure_control_table(cursor)
+        ensure_batch_column(cursor)
         for name in SQL_FILES:
             logger.info(f"Executando {name}")
             cursor.execute((MODELING_DIR / name).read_text(encoding="utf-8"))
             if name == "insert_tables_oficial.sql":
                 _warn_orphans(cursor)
+        ensure_batch_column(cursor)  # staging criado pelos próprios SQL acima
+        batches = record_loaded_and_clear(cursor)
         connection.commit()
-        logger.info("Modelagem aplicada")
+        logger.info(
+            f"Modelagem aplicada; lotes carregados: {sorted(batches) or 'nenhum'}"
+        )
     except Exception:
         connection.rollback()
         logger.error("Falha na modelagem; transação revertida")

@@ -16,9 +16,9 @@ Pipeline de dados **ponta a ponta** que coleta anúncios de imóveis de Uberlân
 ## Destaques
 
 - **Coleta paralela com limite global:** workers compartilham uma fila com reserva atômica e um limitador de requisições (≈ 0,8 anúncio/s no total), com retentativa e backoff exponencial.
-- **Camada bruta reprocessável:** o HTML de cada página é guardado comprimido em storage S3-compatível. Se o site mudar, basta reparsear; não é preciso coletar tudo de novo.
+- **Camada bruta reprocessável:** o HTML de cada página é guardado comprimido em storage S3-compatível. Se o site mudar ou o parser quebrar, basta reparsear; não é preciso coletar tudo de novo. Depois que o lote é carregado no Postgres o HTML é apagado para o disco não crescer (`PURGE_HTML=false` mantém tudo); o que falhou fica em quarentena.
 - **Parsers estáveis e testados:** extração por JSON-LD e atributos `data-testid`, com testes sobre HTML de exemplo versionado.
-- **Carga idempotente no Postgres:** upsert em uma única transação; reexecutar não duplica nada e, se algo falha, nada é aplicado.
+- **Carga idempotente e incremental no Postgres:** upsert em uma única transação; reexecutar não duplica nada e, se algo falha, nada é aplicado. Cada execução do tratamento é um lote, e a carga leva só os lotes ainda não carregados.
 - **Histórico de preço e ciclo de vida:** cada coleta gera um snapshot, o que permite medir variação de preço e tempo no mercado.
 - **Orquestração com Airflow:** DAGs em `DockerOperator`, tarefas mapeadas por worker e alerta de falha.
 - **App web:** API Express somente leitura sobre as views do Postgres e frontend React com gráficos, **mapa de Uberlândia colorido por bairro** e listagem filtrável.
@@ -218,7 +218,19 @@ python scripts/etl/treatment/property.py        # limpa anúncios e gera snapsho
 python scripts/etl/treatment/real_state.py      # limpa imobiliárias
 python scripts/etl/load/migrate.py              # copia a camada tratada para o staging do Postgres
 python scripts/etl/load/model.py                # aplica a modelagem (upsert, transação única)
+python scripts/etl/load/purge_html.py           # apaga o HTML dos lotes já carregados
 ```
+
+Variáveis da limpeza do HTML e da quarentena (valores padrão):
+
+| Variável | Padrão | Função |
+|---|---|---|
+| `PURGE_HTML` | `true` | `false` mantém todo o HTML no storage |
+| `PURGE_LEGACY_HTML` | `false` | `true` também apaga o HTML tratado antes da carga incremental |
+| `QUARANTINE_MAX_BATCHES` | `20` | lotes com HTML em quarentena que param a esteira |
+| `QUARANTINE_CONSECUTIVE` | `3` | execuções seguidas com itens novos em quarentena que a param |
+| `HTML_QUARANTINE_DAYS` | `7` | idade em que o HTML em quarentena é apagado |
+| `BATCH_ID` | automático | força o lote (por exemplo, para recarregar um lote específico) |
 
 Para paralelizar a coleta, abra vários terminais com `WORKER_ID=w1 python scripts/etl/extraction/property.py`, `WORKER_ID=w2 ...`: todos consomem a mesma fila e dividem o limite global de requisições.
 
@@ -244,7 +256,7 @@ docker build -t etl-scripts scripts
 docker compose up -d
 ```
 
-As DAGs `extraction` → `treatment` → `load` rodam os mesmos scripts em containers `etl-scripts` na rede `real_state_airflow`. Elas leem `MONGO_URI`, `POSTGRESQL_URI` e `S3_*` das Variables do Airflow (veja `.env.example`). A DAG `extraction` roda diariamente e reenfileira links coletados há mais de 7 dias, o que alimenta o histórico de preço.
+As DAGs `extraction` → `treatment` → `load` (que termina com `purge_html`, a limpeza do HTML já carregado) rodam os mesmos scripts em containers `etl-scripts` na rede `real_state_airflow`. Elas leem `MONGO_URI`, `POSTGRESQL_URI` e `S3_*` das Variables do Airflow (veja `.env.example`). A DAG `extraction` roda diariamente e reenfileira links coletados há mais de 7 dias, o que alimenta o histórico de preço.
 
 > O compose inclui o `airflow_triggerer`, exigido pelos `TriggerDagRunOperator` deferrable. As tasks de coleta e parse rodam com `retries: 0` (repetir após bloqueio ou `QualityError` não ajuda). A sequência `extraction` → `treatment` → `load` pelo Airflow ainda **não foi executada de ponta a ponta**; os scripts e os serviços de dados foram testados individualmente.
 

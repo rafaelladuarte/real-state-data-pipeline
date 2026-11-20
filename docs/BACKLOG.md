@@ -24,9 +24,9 @@ Restrições que pesam nas prioridades:
 | | 9 | Subida em um comando | M | 🔁 | 4 |
 | | 10 | Segredos fora da imagem Docker | P | ✅ | – |
 | | 15 | Fechar o mapa (termos do IBGE) | P | 🔁 | – |
-| 2. Coleta em escala | 21 | Carga incremental no Postgres | M | ⬜ | – |
-| | 22 | Remoção segura do HTML e quarentena | M | ⬜ | – |
-| | 23 | Coleta em lotes por página | G | ⬜ | 21, 22 |
+| 2. Coleta em escala | 21 | Carga incremental no Postgres | M | ✅ | – |
+| | 22 | Remoção segura do HTML e quarentena | M | ✅ | – |
+| | 23 | Coleta em lotes por página | G | ⬜ | 21, 22 (prontos) |
 | | 24 | Validar em escala e atualizar o ESCALA.md | M | ⬜ | 23 |
 | | 8 | Ampliar a cobertura da coleta | P | 🔁 | 21 a 23 (base inteira) |
 | 3. App e dados | 16 | Ligar o mapa à lista e comparar por preço/m² | M | ⬜ | – |
@@ -69,6 +69,7 @@ Outras entregas:
 - ✅ Mapa de Uberlândia por bairro: contorno do IBGE (`scripts/geo/`), rota `/api/mapa` e seção no app. Spec em [spec/mapa-por-bairro.md](spec/mapa-por-bairro.md).
 - ✅ Índice de seções no topo do app, com links diretos (`#mapa`) e menu em telas menores.
 - ✅ Análise de escala da base inteira em [ESCALA.md](ESCALA.md).
+- ✅ Carga incremental por lote e limpeza segura do HTML com quarentena (itens 21 e 22, decisão D8).
 
 ---
 
@@ -106,22 +107,25 @@ Outras entregas:
 
 ## Fase 2 — Coleta em escala
 
-Spec: [spec/coleta-em-lotes.md](spec/coleta-em-lotes.md). A solução é processar a coleta em lotes de uma página e apagar o HTML de cada lote depois da carga, o que mantém o disco abaixo de 0,5 GB na primeira coleta. Os itens 21 a 24 são etapas independentes, nesta ordem.
+Spec: [spec/coleta-em-lotes.md](spec/coleta-em-lotes.md). Os itens 21 e 22 já foram entregues; o 23 (lotes por página) é o próximo. A solução é processar a coleta em lotes de uma página e apagar o HTML de cada lote depois da carga, o que mantém o disco abaixo de 0,5 GB na primeira coleta. Os itens 21 a 24 são etapas independentes, nesta ordem.
 
-### 21. Carga incremental no Postgres — M
-**Por quê:** `migrate.py` recria o staging com a coleção inteira a cada execução. Com um lote por página isso copiaria cerca de 13,8 milhões de linhas no total, em vez de 28.722. Já reduz o custo da carga hoje, mesmo sem os lotes.
+### 21. ✅ Carga incremental no Postgres — M
+**Por quê:** `migrate.py` recriava o staging com a coleção inteira a cada execução. Com um lote por página isso copiaria cerca de 13,8 milhões de linhas no total, em vez de 28.722. Já reduz o custo da carga hoje, mesmo sem os lotes.
 **Aceite:**
-- Documentos tratados e snapshots carregam um `batch_id`; o staging contém só o lote.
-- Concorrência resolvida (tabelas `TEMP` na mesma transação ou lock), validada com os SQL de `scripts/etl/modeling`.
-- Teste de equivalência: carregar em N lotes e de uma vez deixa o Postgres no mesmo estado; reexecutar um lote não duplica nada.
+- ✅ Documentos tratados e snapshots carregam um `batch_id` (único por execução do tratamento); o staging contém só o lote pendente.
+- ✅ Concorrência resolvida com advisory lock de transação, compartilhado por `migrate.py` e `model.py`, validada com os SQL de `scripts/etl/modeling` (as tabelas `TEMP` da spec não servem: migrate e model são processos separados). Decisão D8.
+- ✅ Teste de equivalência: carregar em 3 lotes e de uma vez deixa o Postgres no mesmo estado; reexecutar um lote não duplica; uma carga que falha deixa o lote pendente (`tests/test_incremental_load.py`).
+- ✅ Validado nos dados reais de 19/11: os 438 imóveis entraram como lote `legado`, as contagens não mudaram e a execução seguinte não tinha nada pendente.
 
-### 22. Remoção segura do HTML e quarentena — M
+### 22. ✅ Remoção segura do HTML e quarentena — M
 **Por quê:** o HTML bruto cresce 268 GB por ano se recoletar toda semana, e o disco não comporta isso.
 **Aceite:**
-- `ObjectStore.delete` e `delete_many`.
-- O HTML só é apagado depois de parse, qualidade, tratamento e carga bem-sucedidos; se algo falha, ele fica guardado (teste que força a falha).
-- Quarentena com limites (`QUARANTINE_MAX_BATCHES`, `QUARANTINE_CONSECUTIVE`) que param a coleta, e limpeza por idade (`HTML_QUARANTINE_DAYS`).
-- `PURGE_HTML=false` mantém o comportamento atual.
+- ✅ `ObjectStore.delete` e `delete_many` (este levanta erro se algum objeto falhar).
+- ✅ O HTML só é apagado depois de parse, qualidade, tratamento e carga bem-sucedidos (`purge_html.py`, último passo da DAG `load`); se algo falha, ele fica guardado. Teste que força a falha da carga e verifica que o HTML continua, e que depois do sucesso ele sai.
+- ✅ Quarentena (`quarentena_html`) com limites `QUARANTINE_MAX_BATCHES` e `QUARANTINE_CONSECUTIVE` que fazem o `purge_html` falhar e o `requeue` recusar a coleta, e limpeza por idade (`HTML_QUARANTINE_DAYS`).
+- ✅ `PURGE_HTML=false` mantém o comportamento anterior; o HTML de anúncios tratados antes da carga incremental só sai com `PURGE_LEGACY_HTML=true`.
+- ⬜ O HTML das **listagens** ainda não é apagado (decisão em aberto na spec) e o disco da primeira coleta completa não foi medido (item 24).
+**Observação:** hoje o "lote" é a execução do tratamento; no item 23 passa a ser a página.
 
 ### 23. Coleta em lotes por página — G (depende dos itens 21 e 22)
 **Por quê:** hoje nada chega ao Postgres até o fim da coleta (11 a 56 h na base inteira) e um bloqueio no meio atrasa o parse, o tratamento e a carga de tudo.

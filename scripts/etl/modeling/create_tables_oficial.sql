@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS "imovel_snapshot" (
 -- Staging dos snapshots (recriado pela migração; existe vazio para não quebrar o insert);
 CREATE TABLE IF NOT EXISTS public._snapshots_imoveis (
   hash TEXT, snapshot_key TEXT, preco DOUBLE PRECISION,
-  condominio DOUBLE PRECISION, iptu DOUBLE PRECISION, data_coleta TEXT
+  condominio DOUBLE PRECISION, iptu DOUBLE PRECISION, data_coleta TEXT,
+  batch_id TEXT
 );
 
 -- Índices sugeridos para melhorar o desempenho;

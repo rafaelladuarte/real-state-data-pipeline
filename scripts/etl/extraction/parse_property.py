@@ -2,6 +2,8 @@
 
 Gera a coleção raw_imoveis. Com REPROCESS=true reprocessa todos os HTMLs
 (útil depois de mudar o parser), substituindo os documentos brutos do anúncio.
+Só vale para o HTML que ainda está no storage: depois que o lote é carregado,
+purge_html.py o apaga (PURGE_HTML=false mantém tudo).
 
 Controle de qualidade: a taxa de campos vazios e de erros é avaliada ANTES de
 gravar. Se o parser estiver quebrado (ex.: o site mudou), a execução falha e
@@ -36,7 +38,8 @@ def parse_stored_property(reprocess: bool | None = None):
     )
     store = ObjectStore()
 
-    query = {"html_key": {"$exists": True}}
+    # HTML já apagado (lote carregado ou quarentena vencida) não pode ser relido
+    query = {"html_key": {"$exists": True}, "html_purged": {"$exists": False}}
     if not reprocess:
         query["parsed"] = {"$exists": False}
 

@@ -1,3 +1,4 @@
+from scripts.etl.batch import current_batch_id
 from scripts.utility.log import get_logger
 from scripts.infra.storage.mongo import MongoDB
 from scripts.infra.security.secrets import get_secret_value
@@ -11,6 +12,8 @@ logger = get_logger(__name__)
 
 def treat_real_state():
     logger.info("---------------- TREATMENT REAL STATE----------------")
+    batch_id = current_batch_id()
+    logger.info(f"Lote deste tratamento: {batch_id}")
 
     mongo = MongoDB(
         uri=get_secret_value('MONGO_URI')
@@ -63,7 +66,8 @@ def treat_real_state():
                     "numero": number,
                     "data_cadastro": data_cadastro,
                     "telefone": None,
-                    "data_coleta": doc["data_coleta_imobiliaria"]
+                    "data_coleta": doc["data_coleta_imobiliaria"],
+                    "batch_id": batch_id,
                 }
             )
 

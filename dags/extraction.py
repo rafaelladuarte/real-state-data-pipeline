@@ -29,6 +29,11 @@ ETL_ENV = {
     "MIN_INTERVAL_SECONDS": os.getenv("MIN_INTERVAL_SECONDS", "1.25"),
     # Links coletados há mais de N dias voltam à fila (histórico de preço)
     "RECRAWL_AFTER_DAYS": os.getenv("RECRAWL_AFTER_DAYS", "7"),
+    # Quarentena do HTML: o requeue para a coleta se os limites forem atingidos
+    "PURGE_HTML": os.getenv("PURGE_HTML", "true"),
+    "QUARANTINE_MAX_BATCHES": os.getenv("QUARANTINE_MAX_BATCHES", "20"),
+    "QUARANTINE_CONSECUTIVE": os.getenv("QUARANTINE_CONSECUTIVE", "3"),
+    "HTML_QUARANTINE_DAYS": os.getenv("HTML_QUARANTINE_DAYS", "7"),
 }
 # Quantidade de workers de coleta em paralelo
 SCRAPER_WORKERS = int(os.getenv("SCRAPER_WORKERS", "3"))

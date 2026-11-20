@@ -39,6 +39,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
   - `REPROCESS=true python scripts/etl/extraction/parse_property.py` reparseia todos os HTMLs sem acessar o site e substitui os documentos brutos do anúncio (testado: 8 → 8, sem duplicar).
   - Na DAG: `get_links → get_property → parse_property → get_real_state → start_treatment`.
 - **Storage usado:** RustFS (S3-compatível). O MinIO deixou de publicar imagens da edição comunitária (Docker Hub e Quay recusaram o pull), e o cliente Python `minio` fala o protocolo S3, então a troca não altera o código além das variáveis `S3_*`.
+- **Atualização (D8):** o HTML deixa de ser permanente. Depois que o lote do anúncio é carregado no Postgres, `purge_html.py` o apaga (`PURGE_HTML=false` mantém tudo); só o HTML que falhou fica, em quarentena. Reparsear coletas antigas que deram certo passa a exigir recoletar.
 - **Limitação conhecida:** o hash do tratamento não inclui o preço, então reprocessar atualiza o bruto, mas não altera documentos já tratados; isso é resolvido pelo histórico (D4).
 - **Alternativas descartadas:** eliminar o Mongo (reescrita de tratamento e migração); manter só o Mongo (não permite reprocessar).
 
@@ -96,7 +97,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
   - Tipos e modos novos da coleta são criados a partir do staging.
   - Imóveis e imobiliárias usam upsert: preço, descrição, imagens e datas são atualizados só quando mudam (os triggers recalculam custo/m² e faixa de área).
 - **Resultado:** reexecutar 3 vezes mantém 169 imóveis, 26 imobiliárias e 168 endereços (antes 195, com duplicados); se algo falha, nada é aplicado. Coberto por testes de integração (`tests/test_model_load.py`).
-- **Escolha consciente:** o staging é completo, não incremental. Com ~10 mil linhas é barato e mais seguro (nenhuma etapa perde dados se a seguinte falhar). Com volume muito maior, trocar por carga com marca d'água.
+- **Escolha consciente (substituída pela D8):** o staging era completo, recriado a cada execução, o que era barato com ~10 mil linhas. A D8 trocou isso por carga incremental por lote.
 - **Limitação:** o hash do tratamento ignora o preço, então um anúncio recoletado com preço novo ainda é descartado na camada Mongo antes de chegar aqui; isso é resolvido pelo histórico (D4).
 - **Na DAG `load`:** `migrate_to_postgres → model_data`, ambos em `DockerOperator` (os caminhos antigos para `/opt/airflow/scr/...` não existiam). A DAG `treatment` já a dispara no fim.
 
@@ -118,6 +119,21 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - **Mapa sem fundo:** SVG com `d3-geo`, sem tiles, então o app continua funcionando sem rede.
 - **Limitações:** os limites do IBGE são aproximados (ajustados aos setores censitários). A normalização existe em Python (`scripts/geo/nomes.py`) e em JavaScript (`app/api/bairros.js`) e precisa ser mantida igual; gravar a chave no ETL está no backlog (item 18).
 - **Licença:** dado público do IBGE; a fonte é citada no app e no README. Os termos formais de redistribuição não puderam ser lidos automaticamente (o catálogo de metadados do IBGE responde com desafio anti-bot, que não é contornado); confira o documento "Informações Técnicas e Legais" do IBGE antes de redistribuir o arquivo fora deste projeto.
+
+### D8. Carga incremental por lote e limpeza segura do HTML ✅
+- **Problema:** o staging era recriado com a camada tratada inteira a cada carga. Com um lote por página isso copiaria ~13,8 milhões de linhas para 28.722 anúncios (spec em `docs/spec/coleta-em-lotes.md`). E o HTML bruto cresce 268 GB por ano se recoletar toda semana, mais do que o disco comporta.
+- **Decisão (carga incremental):**
+  - Cada execução do tratamento gera um `batch_id` único (`AAAAMMDDTHHMMSS-xxxx`; só a data seria um bug: o que fosse tratado depois da primeira carga do dia nunca subiria). Documentos tratados, snapshots de preço e imobiliárias o carregam.
+  - `migrate.py` consulta `lote_carga` (lotes já carregados) e leva ao staging só os lotes pendentes. `model.py` aplica o staging, **registra os lotes em `lote_carga` e o esvazia na mesma transação**: "aplicado" e "registrado" nunca divergem, e uma carga que falha deixa o lote pendente, sem duplicar nada ao tentar de novo.
+  - `migrate` e `model` tomam o mesmo advisory lock de transação, então lotes diferentes entram em fila em vez de disputar o staging. Foi a alternativa às tabelas `TEMP` da spec, porque migrate e model são tasks (processos) separadas.
+  - `BATCH_ID=<id>` força a recarga de um lote; documentos tratados antes disso (sem `batch_id`) entram uma única vez como o lote `legado`.
+- **Decisão (limpeza do HTML):**
+  - `purge_html.py`, último passo da DAG `load`, apaga o HTML só de anúncios tratados cujo lote consta em `lote_carga`. Primeiro o storage, depois a marca no Mongo (`html_purged`): se apagar falhar, nada é marcado e a próxima execução tenta de novo.
+  - O que falhou no parse ou no tratamento fica no storage e é registrado em `quarentena_html`. Limites: `QUARANTINE_MAX_BATCHES` (lotes distintos com HTML retido) e `QUARANTINE_CONSECUTIVE` (execuções seguidas que acrescentaram itens). Ao atingir um deles, o `purge_html` falha e o `requeue` (primeira task da `extraction`) recusa iniciar a coleta, em vez de gastar horas com um parser quebrado. Após `HTML_QUARANTINE_DAYS` o HTML em quarentena é apagado.
+  - `PURGE_HTML=false` mantém o HTML para sempre. O HTML de anúncios tratados antes da carga incremental só é apagado com `PURGE_LEGACY_HTML=true`.
+- **Resultado:** carregar os mesmos dados em 3 lotes ou de uma vez deixa o Postgres no mesmo estado (teste de equivalência); reexecutar não duplica; falha na carga mantém o HTML e sucesso o remove. Nos dados reais de 19/11, a primeira carga levou os 438 imóveis como `legado` e a seguinte não tinha nada pendente. Testes em `tests/test_incremental_load.py` e `tests/test_purge_html.py`.
+- **Consequência (perda do bronze):** depois do lote carregado, reparsear exige recoletar; `REPROCESS=true` só vale para o HTML retido. Mitigação: a quarentena e as fixtures de `tests/fixtures/`.
+- **Limitações:** o "lote" é a execução do tratamento; com a coleta em lotes por página (item 23 do backlog) passa a ser a página. O HTML das **listagens** (`listagem/...`) ainda não é apagado. Falta medir o disco na primeira coleta completa (item 24).
 
 ## Princípios
 

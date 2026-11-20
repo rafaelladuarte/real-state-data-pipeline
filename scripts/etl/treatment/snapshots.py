@@ -14,10 +14,14 @@ COLLECTION = "snapshots_imoveis"
 
 
 def build_snapshot(
-    hash_: str, preco, condominio, iptu, data_coleta: str
+    hash_: str, preco, condominio, iptu, data_coleta: str,
+    batch_id: str | None = None,
 ) -> dict:
-    """data_coleta no formato dd/mm/aaaa. A chave evita duplicar no mesmo dia."""
-    return {
+    """data_coleta no formato dd/mm/aaaa. A chave evita duplicar no mesmo dia.
+
+    `batch_id` é o lote do tratamento, usado pela carga incremental.
+    """
+    snapshot = {
         "hash": hash_,
         "snapshot_key": f"{hash_}_{data_coleta}",
         "preco": preco,
@@ -25,6 +29,9 @@ def build_snapshot(
         "iptu": iptu,
         "data_coleta": data_coleta,
     }
+    if batch_id:
+        snapshot["batch_id"] = batch_id
+    return snapshot
 
 
 def backfill_snapshots() -> None:

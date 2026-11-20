@@ -1,6 +1,6 @@
 # Especificação: coleta em lotes por página, com carga incremental e limpeza do HTML
 
-Status: proposta (não implementada) · Escopo: `scripts/etl/`, `scripts/infra/`, `dags/` · Data: 19/11/2026
+Status: etapas 1 e 2 implementadas (carga incremental e remoção segura do HTML, decisão D8); lotes por página e validação em escala pendentes · Escopo: `scripts/etl/`, `scripts/infra/`, `dags/` · Data: 19/11/2026
 
 Relacionada a: [docs/ESCALA.md](../ESCALA.md) (tempo e armazenamento medidos), `docs/ARCHITECTURE.md` (decisões D1, D2 e D5) e `docs/BACKLOG.md`.
 

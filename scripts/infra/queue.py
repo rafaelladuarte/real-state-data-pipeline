@@ -84,7 +84,8 @@ class LinkQueue:
             {"$unset": {
                 "scraper": "", "html_key": "", "parsed": "", "attempts": "",
                 "error": "", "parse_error": "", "lease_until": "",
-                "lease_owner": "",
+                "lease_owner": "", "html_purged": "", "html_purged_at": "",
+                "html_quarantine_expired": "",
             }},
         )
         return result.modified_count
