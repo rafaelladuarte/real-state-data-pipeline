@@ -16,6 +16,8 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - ✅ Correções de SQL: função `calcular_faixa_area`, triggers reexecutáveis, views e insert com sintaxe válida.
 - ✅ App de visualização (API Express + React) sobre as views do Postgres.
 - ✅ Scrapers reescritos para o novo HTML do ZAP Imóveis (parsers puros, sem o formulário de telefone).
+- ✅ Mapa de Uberlândia por bairro: contorno do IBGE (`scripts/geo/`), rota `/api/mapa` e seção no app. Spec em [spec/mapa-por-bairro.md](spec/mapa-por-bairro.md). Falta o item 15.
+- ✅ Índice de seções no topo do app, com links diretos (`#mapa`) e menu em telas menores.
 - 🔁 Primeira coleta real (amostra de ~170 anúncios de aluguel).
 
 ---
@@ -88,6 +90,52 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 
 ---
 
+## P1 — Evolução do app e dos dados
+
+### 15. Fechar o mapa por bairro — P
+**Por quê:** o código está pronto, mas a documentação e a licença do contorno ficaram em aberto.
+**Aceite:**
+- Licença do IBGE para redistribuir o GeoJSON confirmada e a fonte citada no README.
+- `docs/ARCHITECTURE.md` e o README principal descrevem o mapa e a origem do contorno.
+- Capturas de tela e GIF do app refeitos com a seção do mapa.
+
+### 16. Ligar o mapa à lista e comparar por preço/m² — M
+**Por quê:** o mapa e a lista de anúncios são seções separadas, e o preço bruto compara mal imóveis de tamanhos diferentes. O banco já guarda `custo_m2`.
+**Aceite:**
+- Clicar em um bairro filtra a lista da seção "Anúncios" (e a URL guarda o bairro).
+- Nova métrica "Preço por m²" no mapa, com a mesma regra de 3 ou mais anúncios.
+- Teste de integração da rota `/api/mapa` (hoje conferida só à mão).
+
+### 17. Evolução no tempo — M (depende do item 4)
+**Por quê:** a seção "Variação" mostra "Só há 1 coleta"; sem coletas repetidas o app não conta a história do mercado.
+**Aceite:**
+- Gráfico do preço mediano por coleta, por modo e tipo.
+- O mapa permite escolher a coleta ou comparar duas.
+- Texto da seção explica quando há poucas coletas para concluir algo.
+
+### 18. Chave do polígono gravada no ETL — M
+**Por quê:** a normalização de nomes existe em Python (`scripts/geo/nomes.py`) e em JavaScript (`app/api/bairros.js`) e precisa ser mantida igual à mão.
+**Aceite:**
+- O tratamento grava o código do bairro do IBGE em `endereco` (ou tabela de apoio) usando `scripts/geo/nomes.py`.
+- A API lê esse campo e deixa de normalizar nomes; `app/api/bairros.js` perde a duplicação.
+- O relatório de cobertura (`scripts/geo/relatorio_cobertura.py`) roda no fim da carga e alerta se ficar abaixo de 90%.
+
+### 19. Testes do app e CI com build — M
+**Por quê:** a API e o front não têm testes, e as conferências do mapa e do índice foram feitas por scripts avulsos.
+**Aceite:**
+- Testes da API (rotas, filtros, regra de 3 anúncios) contra um Postgres descartável.
+- Teste de fumaça no navegador (Playwright): abre o app, troca de modo, abre o mapa e o menu de seções.
+- O workflow do CI roda `vite build` e esses testes.
+
+### 20. Publicar uma versão somente leitura — G
+**Por quê:** hoje o app só roda em `localhost`; uma vitrine online mostra o projeto sem exigir que a pessoa suba o Docker.
+**Aceite:**
+- Instantâneo do banco (ou API estática) servido sem credenciais de escrita.
+- Aviso visível de que os dados são uma amostra e a data da coleta.
+- Nenhum segredo no repositório nem na imagem (depende do item 10).
+
+---
+
 ## P2 — Engenharia e apresentação
 
 ### 9. CI e subida em um comando — M (CI ✅; falta a subida em um comando)
@@ -123,6 +171,16 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 ### 14. Aposentar o `dev_pipeline` e scripts soltos — P
 **Aceite:**
 - Remover ou documentar `scripts/dev_pipeline/` e o bloco de demonstração de `operator.py`.
+
+---
+
+## Ordem sugerida
+
+1. Item 15 (terminar o que está aberto).
+2. Itens 4 e 9 (coleta recorrente e subida em um comando): sem eles o app não acumula histórico.
+3. Item 10 (segredos fora da imagem): antes de publicar qualquer coisa.
+4. Item 8 (ampliar a cobertura): deixa o mapa e as médias por bairro mais preenchidos.
+5. Itens 16, 18 e 19, depois 17 e 20, que dependem de mais dados e de mais coletas.
 
 ---
 
