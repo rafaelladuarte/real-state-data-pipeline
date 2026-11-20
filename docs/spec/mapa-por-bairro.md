@@ -1,6 +1,6 @@
 # Especificação: mapa de Uberlândia colorido por bairro
 
-Status: proposta (não implementada); fonte do contorno definida · Escopo: app de visualização (`app/`) e um script de preparo único (`scripts/geo/`).
+Status: implementada (passos 1 a 5 concluídos em 19/11/2026) · Escopo: app de visualização (`app/`) e um script de preparo único (`scripts/geo/`).
 
 ## 1. Contexto e objetivo
 
@@ -42,7 +42,7 @@ URL do arquivo: `https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_ter
 Ressalvas:
 
 - O IBGE ajustou os limites aos setores censitários, então são aproximados.
-- A licença formal de redistribuição do arquivo ainda precisa ser confirmada antes de versionar o GeoJSON; citar IBGE (Censo 2022) como fonte no README.
+- **Licença:** é dado público do IBGE e a fonte é citada no app e no README. Não foi possível ler os termos formais de redistribuição: o catálogo de metadados do IBGE responde com um desafio anti-bot, que o projeto não contorna. Fontes secundárias indicam que os dados são abertos (Lei de Acesso à Informação) e que a fonte "IBGE" deve ser citada. Antes de redistribuir o arquivo fora deste projeto, conferir o documento "Informações Técnicas e Legais" do IBGE.
 - O OSM exige a atribuição "© OpenStreetMap contributors" e o cabeçalho `User-Agent` nas consultas (sem ele o Overpass responde 406).
 
 ### Cobertura medida
@@ -174,4 +174,4 @@ Nova seção do app, no padrão editorial das existentes (kicker, título que mu
 2. ~~`scripts/geo/` + GeoJSON + relatório de cobertura + testes~~ (feito: 75 bairros, 70 KB, 94,7% de cobertura, 15 testes).
 3. ~~Rota `/api/mapa`~~ (feita: `app/api/server.js` + `app/api/bairros.js`, valores conferidos contra `/api/preco-medio` e `/api/tempo-mercado`).
 4. ~~Componente `Mapa` e a seção no app, com tabela e temas~~ (feito: `app/web/src/Mapa.jsx` + seção "06 · Mapa" em `App.jsx`; conferido nos temas claro e escuro, no celular, com mouse e teclado).
-5. Documentação e novas capturas de tela para o README.
+5. ~~Documentação e novas capturas de tela para o README~~ (feito: `docs/ARCHITECTURE.md` D7, README, `docs/images/mapa*.png` e demonstração em vídeo refeita).

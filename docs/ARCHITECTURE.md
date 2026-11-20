@@ -22,7 +22,7 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
        ▼
   GOLD    ── Postgres: dimensões + fato + snapshots de preço + views
        │
-  5. API Express ──▶ app React
+  5. API Express ──▶ app React   (+ contorno dos bairros do IBGE, estático, para o mapa; ver D7)
 
   Transversal: validação dos documentos, checagem de taxa de nulos por execução,
   testes de contrato com HTML de exemplo, alerta em falha, métricas por execução.
@@ -109,6 +109,15 @@ Documento de alinhamento. Descreve para onde a arquitetura vai e por quê; a ord
 - **Alertas:** `on_failure_callback` das três DAGs envia a falha ao webhook de `ALERT_WEBHOOK_URL`; o envio nunca derruba a DAG.
 - **CI:** lint (ruff), pytest com Mongo e Postgres como serviços, build do frontend e build da imagem de ETL com teste rápido. Validado localmente a partir de um clone novo; o workflow em si ainda não rodou no GitHub.
 - **Achados no caminho:** `index.html` do app e os HTMLs de exemplo dos testes não estavam versionados (a regra `*.html` do `.gitignore` os escondia), o que quebraria o build e os testes de quem clonasse; o healthcheck do Mongo no compose usava o comando `mongo`, que não existe nas imagens atuais; e o limitador agora desconta metade da latência de ida e volta para acordar perto do slot reservado.
+
+### D7. Mapa por bairro: contorno estático do IBGE, casado por nome ✅
+- **Problema:** o banco guarda só o nome do bairro (sem latitude/longitude), então um mapa por anúncio exigiria geocodificar endereços. O mapa por bairro precisa apenas de um contorno por bairro.
+- **Decisão:** usar a **Malha de Bairros do Censo 2022 (IBGE)**, baixada uma vez e versionada como `app/web/public/bairros-uberlandia.geojson` (75 bairros, ~70 KB, geometria simplificada). Não entra no Airflow: é um dado estático, gerado por `scripts/geo/` (`baixar_bairros.py`, `preparar_bairros.py`). OpenStreetMap e a Prefeitura foram avaliados; o IBGE ganhou por ser um arquivo único, oficial e com código de bairro (comparação em [spec/mapa-por-bairro.md](spec/mapa-por-bairro.md)).
+- **Casamento por nome:** o bairro do anúncio e o do IBGE são reduzidos a uma chave (sem acento, minúsculas, abreviações como "Sta." e "Jd." expandidas). Variações conhecidas ("Gávea Sul" → "Gávea") ficam em `scripts/geo/apelidos_bairros.json` e vão para o campo `chaves` de cada feature. A API (`/api/mapa`) lê o GeoJSON, agrega por polígono e aplica a mesma regra de 3 ou mais anúncios dos gráficos.
+- **Cobertura medida:** 415 de 438 anúncios (94,7%) caem em um bairro com polígono. Os demais são loteamentos e condomínios sem contorno oficial; `python -m scripts.geo.relatorio_cobertura` lista os que ficaram de fora e sai com erro abaixo de 90%.
+- **Mapa sem fundo:** SVG com `d3-geo`, sem tiles, então o app continua funcionando sem rede.
+- **Limitações:** os limites do IBGE são aproximados (ajustados aos setores censitários). A normalização existe em Python (`scripts/geo/nomes.py`) e em JavaScript (`app/api/bairros.js`) e precisa ser mantida igual; gravar a chave no ETL está no backlog (item 18).
+- **Licença:** dado público do IBGE; a fonte é citada no app e no README. Os termos formais de redistribuição não puderam ser lidos automaticamente (o catálogo de metadados do IBGE responde com desafio anti-bot, que não é contornado); confira o documento "Informações Técnicas e Legais" do IBGE antes de redistribuir o arquivo fora deste projeto.
 
 ## Princípios
 

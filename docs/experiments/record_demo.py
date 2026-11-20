@@ -132,7 +132,25 @@ try:
     scroll(section_top(3), steps=22)
     hold(1700)
 
-    # 6) tema escuro
+    # 6) índice do topo leva ao mapa (rolagem suave), passa o cursor em um bairro e troca a métrica
+    click(".indice-links a", text="Mapa")
+    for _ in range(12):
+        snap(80)
+    time.sleep(0.4)
+    hold(1200)
+    box = driver.execute_script(
+        "const p = [...document.querySelectorAll('.bairro')]"
+        ".find(x => x.getAttribute('aria-label').includes('R$'));"
+        "const r = p.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]")
+    mouse_to(*box)
+    time.sleep(0.4)
+    hold(1700)
+    park_mouse()
+    click(".seg button", text="Anúncios")
+    time.sleep(0.5)
+    hold(1800)
+
+    # 7) tema escuro
     scroll(0, steps=22)
     click(".theme-btn")
     time.sleep(0.6)

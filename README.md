@@ -21,7 +21,7 @@ Pipeline de dados **ponta a ponta** que coleta anúncios de imóveis de Uberlân
 - **Carga idempotente no Postgres:** upsert em uma única transação; reexecutar não duplica nada e, se algo falha, nada é aplicado.
 - **Histórico de preço e ciclo de vida:** cada coleta gera um snapshot, o que permite medir variação de preço e tempo no mercado.
 - **Orquestração com Airflow:** DAGs em `DockerOperator`, tarefas mapeadas por worker e alerta de falha.
-- **App web:** API Express somente leitura sobre as views do Postgres e frontend React com gráficos e listagem filtrável.
+- **App web:** API Express somente leitura sobre as views do Postgres e frontend React com gráficos, **mapa de Uberlândia colorido por bairro** e listagem filtrável.
 - **Coleta responsável:** ritmo limitado, sem contornar proteções do site e sem envio de dados fictícios a formulários.
 
 ## Arquitetura
@@ -82,10 +82,10 @@ Com 2 workers o teto global já é atingido; mais workers só aumentam o uso de 
 ## App
 
 <p align="center">
-  <img src="docs/media/demo.gif" alt="Demonstração do app: troca entre aluguel e venda, gráficos, tabela e tema escuro" width="900">
+  <img src="docs/media/demo.gif" alt="Demonstração do app: troca entre aluguel e venda, gráficos, tabela, mapa por bairro e tema escuro" width="900">
 </p>
 <p align="center">
-  <sub>Demonstração de 20 s: manchete e número de destaque, tooltip e tabela de um gráfico, troca de <b>Aluguel</b> para <b>Venda</b> e tema escuro.
+  <sub>Demonstração de 26 s: manchete e número de destaque, tooltip e tabela de um gráfico, troca de <b>Aluguel</b> para <b>Venda</b>, índice do topo levando ao <b>mapa por bairro</b> e tema escuro.
   <a href="docs/media/demo.mp4">Ver em MP4</a> (melhor qualidade).</sub>
 </p>
 
@@ -93,11 +93,17 @@ Com 2 workers o teto global já é atingido; mais workers só aumentam o uso de 
   <img src="docs/images/app.png" alt="App no tema claro, modo aluguel" width="49%">
   <img src="docs/images/app-dark.png" alt="App no tema escuro, modo venda" width="49%">
 </p>
+<p align="center">
+  <img src="docs/images/mapa.png" alt="Mapa de Uberlândia colorido pelo preço médio de aluguel por bairro, tema claro" width="49%">
+  <img src="docs/images/mapa-dark.png" alt="Mapa de Uberlândia colorido pelo preço médio de venda por bairro, tema escuro" width="49%">
+</p>
 
-Uma página editorial em vez de um painel de relatório: a manchete pergunta *quanto custa alugar em Uberlândia?* e responde com um número de destaque (a **mediana** do aluguel), seguido de seções cujos títulos enunciam a conclusão do gráfico. Preço médio e idade mediana do anúncio por bairro (só com 3 ou mais anúncios, para um imóvel isolado não distorcer), oferta por bairro, dispersão preço × metragem, variação de preço entre coletas e uma lista filtrável de anúncios.
+Uma página editorial em vez de um painel de relatório: a manchete pergunta *quanto custa alugar em Uberlândia?* e responde com um número de destaque (a **mediana** do aluguel), seguido de seções cujos títulos enunciam a conclusão do gráfico. Preço médio e idade mediana do anúncio por bairro (só com 3 ou mais anúncios, para um imóvel isolado não distorcer), oferta por bairro, dispersão preço × metragem, variação de preço entre coletas, o mapa por bairro e uma lista filtrável de anúncios.
 
 - **Aluguel ou venda:** um seletor fixo no topo filtra a página inteira (manchete, número de destaque, gráficos e lista). A escolha vai para a URL (`?modo=venda`), então o link é compartilhável.
 - **Identidade visual:** um único salmão (`#e2634d`), validado nos temas claro e escuro quanto a faixa de luminosidade, croma e contraste; títulos em serifa e números sempre em sans.
+- **Mapa por bairro:** Uberlândia desenhada em SVG (`d3-geo`, sem mapa de fundo e sem depender de rede), cada bairro pintado por preço médio, quantidade de anúncios ou idade do anúncio, com legenda por faixas. Bairros com menos de 3 anúncios ficam em cinza em vez de mostrar uma média enganosa, e 94,7% dos anúncios caem em um bairro com contorno. O contorno vem da Malha de Bairros do Censo 2022 do **IBGE** (limites aproximados); como foi feito e medido está em [docs/spec/mapa-por-bairro.md](docs/spec/mapa-por-bairro.md).
+- **Navegação por seção:** o topo traz um índice com links diretos (`#mapa`, `#preco`, …); em telas estreitas vira um botão com o nome da seção atual.
 - **Acessível por padrão:** cada gráfico tem a tabela equivalente a um clique ("Ver como tabela"), foco visível, tema claro/escuro e respeito a `prefers-reduced-motion`.
 - **Gráficos leves:** barras finas com o valor na ponta, grade em fio, tooltip próprio e pontos com área de toque maior que a marca.
 
@@ -127,7 +133,7 @@ Detalhes em [app/README.md](app/README.md).
 | Coleta | Selenium, BeautifulSoup + lxml |
 | Orquestração | Apache Airflow 2.7 (`DockerOperator`, dynamic task mapping) |
 | Armazenamento | MongoDB (silver), PostgreSQL (gold), storage S3-compatível RustFS (bronze) |
-| App | Express, React, Vite, Recharts |
+| App | Express, React, Vite, Recharts, d3-geo |
 | Infra | Docker, Docker Compose |
 | Qualidade | pytest, ruff |
 
@@ -144,13 +150,14 @@ Detalhes em [app/README.md](app/README.md).
 │   ├── infra/                  # Mongo, Postgres, object store, fila e limitador, segredos
 │   ├── utility/                # logging e funções de extração/tratamento de texto
 │   ├── backup/                 # backup e restauração do Mongo
+│   ├── geo/                    # contorno dos bairros (IBGE) para o mapa: download, GeoJSON e relatório de cobertura
 │   ├── Dockerfile              # imagem de ETL (Chrome + chromedriver)
 │   └── requirements.txt
 ├── app/
 │   ├── api/                    # API Express somente leitura
 │   └── web/                    # Frontend React (Vite)
 ├── tests/                      # pytest (unidade e integração) e HTML de exemplo
-├── docs/                       # arquitetura, backlog, experimentos, imagens e diagramas
+├── docs/                       # arquitetura, backlog, especificações (spec/), experimentos, imagens e diagramas
 ├── docker-compose.yml
 ├── Dockerfile.airflow
 └── .env.example
@@ -285,6 +292,7 @@ pytest
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): arquitetura alvo, decisões, experimentos e limitações.
 - [docs/BACKLOG.md](docs/BACKLOG.md): melhorias em andamento e planejadas.
+- [docs/spec/mapa-por-bairro.md](docs/spec/mapa-por-bairro.md): especificação do mapa por bairro (fonte do contorno, cobertura medida e critérios de aceite).
 - [app/README.md](app/README.md): app de visualização e endpoints da API.
 - `docs/diagrams/`: scripts que geram os diagramas (`build_diagrams.py`) e as capturas (`build_captures.py`) na mesma identidade visual do app.
 

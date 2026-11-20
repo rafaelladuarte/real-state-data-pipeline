@@ -16,7 +16,7 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 - ✅ Correções de SQL: função `calcular_faixa_area`, triggers reexecutáveis, views e insert com sintaxe válida.
 - ✅ App de visualização (API Express + React) sobre as views do Postgres.
 - ✅ Scrapers reescritos para o novo HTML do ZAP Imóveis (parsers puros, sem o formulário de telefone).
-- ✅ Mapa de Uberlândia por bairro: contorno do IBGE (`scripts/geo/`), rota `/api/mapa` e seção no app. Spec em [spec/mapa-por-bairro.md](spec/mapa-por-bairro.md). Falta o item 15.
+- ✅ Mapa de Uberlândia por bairro: contorno do IBGE (`scripts/geo/`), rota `/api/mapa` e seção no app. Spec em [spec/mapa-por-bairro.md](spec/mapa-por-bairro.md). Pendente só a leitura manual dos termos do IBGE (item 15).
 - ✅ Índice de seções no topo do app, com links diretos (`#mapa`) e menu em telas menores.
 - 🔁 Primeira coleta real (amostra de ~170 anúncios de aluguel).
 
@@ -92,12 +92,13 @@ Legenda de status: ✅ feito · 🔁 em andamento · ⬜ a fazer.
 
 ## P1 — Evolução do app e dos dados
 
-### 15. Fechar o mapa por bairro — P
+### 15. ✅ Fechar o mapa por bairro — P
 **Por quê:** o código está pronto, mas a documentação e a licença do contorno ficaram em aberto.
 **Aceite:**
-- Licença do IBGE para redistribuir o GeoJSON confirmada e a fonte citada no README.
-- `docs/ARCHITECTURE.md` e o README principal descrevem o mapa e a origem do contorno.
-- Capturas de tela e GIF do app refeitos com a seção do mapa.
+- ✅ Fonte (IBGE, Censo 2022) citada no app, no README e na arquitetura (D7).
+- ⬜ Termos formais de redistribuição do IBGE lidos: o catálogo de metadados responde com desafio anti-bot, então a leitura de "Informações Técnicas e Legais" fica para uma checagem manual.
+- ✅ `docs/ARCHITECTURE.md` e o README principal descrevem o mapa e a origem do contorno.
+- ✅ Capturas de tela, GIF e MP4 do app refeitos com a seção do mapa e o índice do topo.
 
 ### 16. Ligar o mapa à lista e comparar por preço/m² — M
 **Por quê:** o mapa e a lista de anúncios são seções separadas, e o preço bruto compara mal imóveis de tamanhos diferentes. O banco já guarda `custo_m2`.
