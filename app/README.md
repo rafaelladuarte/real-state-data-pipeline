@@ -16,6 +16,10 @@ cd app/api && npm install && npm start
 cd app/web && npm install && npm run dev
 ```
 
+## Mapa por bairro
+
+A seção "Mapa" pinta cada bairro de Uberlândia por preço médio, anúncios ou idade do anúncio (SVG com `d3-geo`, sem mapa de fundo, funciona sem rede). O contorno é `web/public/bairros-uberlandia.geojson`, gerado por `scripts/geo/` a partir da Malha de Bairros do IBGE (Censo 2022); veja `docs/spec/mapa-por-bairro.md`.
+
 ## Endpoints
 
 `/api/destaques` (números do topo: medianas por modo e tipo), `/api/resumo`, `/api/bairros`, `/api/preco-medio?modo=&tipo=`, `/api/tempo-mercado?modo=&tipo=`,

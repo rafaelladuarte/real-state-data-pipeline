@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Scatter, ScatterChart,
   Tooltip, XAxis, YAxis,
 } from "recharts";
+import Mapa, { Legenda, faixas } from "./Mapa.jsx";
 
 const brl = (v) =>
   Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -463,6 +464,78 @@ function VariacaoDePreco({ modo }) {
   );
 }
 
+const METRICAS = {
+  preco: {
+    nome: "Preço", campo: "media_preco", fmt: brlCompact, fmtDetalhe: brl, rotulo: "Preço médio",
+    titulo: (t) => `${t.bairro} tem o maior preço médio do mapa, ${brl(t.media_preco)}`,
+  },
+  anuncios: {
+    nome: "Anúncios", campo: "quantidade", fmt: num, rotulo: "Anúncios",
+    titulo: (t) => `${t.bairro} tem a maior oferta: ${num(t.quantidade)} anúncios`,
+  },
+  idade: {
+    nome: "Idade", campo: "dias_mediana", fmt: (v) => `${num(v)} dias`, rotulo: "Idade mediana",
+    titulo: (t) => `Os anúncios mais antigos estão em ${t.bairro}, com mediana de ${t.dias_mediana} dias`,
+  },
+};
+
+function MapaDeBairros({ modo }) {
+  const filtros = useApi("/api/filtros");
+  const contorno = useApi("/bairros-uberlandia.geojson");
+  const [tipo, setTipo] = useState("");
+  const [metrica, setMetrica] = useState("preco");
+  const qs = new URLSearchParams({ ...(modo && { modo }), ...(tipo && { tipo }) });
+  const state = useApi(`/api/mapa?${qs}`);
+  const m = METRICAS[metrica];
+  const linhas = useMemo(
+    () => new Map((state.data ?? []).map((r) => [r.bairro, { valor: r[m.campo], quantidade: r.quantidade }])),
+    [state.data, m.campo],
+  );
+  const topo = (state.data ?? []).reduce((a, r) => (r[m.campo] != null && (!a || r[m.campo] > a[m.campo]) ? r : a), null);
+  const { legenda } = useMemo(() => faixas([...linhas.values()].map((l) => l.valor)), [linhas]);
+  return (
+    <Section
+      kicker="06 · Mapa"
+      title={topo ? m.titulo(topo) : "Onde fica cada bairro"}
+      lede="Cada bairro pintado pela métrica escolhida. Preço e idade só aparecem com 3 ou mais anúncios; bairros sem contorno oficial (loteamentos e condomínios) ficam fora do mapa."
+      aside={(
+        <div className="filters filters--col">
+          <div className="seg" role="group" aria-label="Métrica do mapa">
+            {Object.entries(METRICAS).map(([k, v]) => (
+              <button key={k} className={k === metrica ? "is-on" : undefined} aria-pressed={k === metrica} onClick={() => setMetrica(k)}>
+                {v.nome}
+              </button>
+            ))}
+          </div>
+          <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            {(filtros.data?.tipos ?? []).map((t) => <option key={t} value={t}>{cap(t)}</option>)}
+          </select>
+        </div>
+      )}
+    >
+      <ChartBlock
+        state={state}
+        caption="Métricas por bairro"
+        columns={[
+          { key: "bairro", label: "Bairro" },
+          { key: "media_preco", label: "Preço médio", fmt: (v) => (v == null ? "—" : brl(v)), num: true },
+          { key: "quantidade", label: "Anúncios", num: true },
+          { key: "dias_mediana", label: "Dias (mediana)", fmt: (v) => (v == null ? "—" : v), num: true },
+        ]}
+      >
+        {() => (contorno.data ? (
+          <>
+            <Mapa geo={contorno.data} linhas={linhas} fmt={m.fmt} fmtDetalhe={m.fmtDetalhe} rotuloValor={m.rotulo} />
+            <Legenda legenda={legenda} fmt={m.fmt} semValor="Sem valor ou sem anúncios" />
+            <p className="fonte">Contorno dos bairros: IBGE, Censo Demográfico 2022 (limites aproximados).</p>
+          </>
+        ) : <p className="msg">{contorno.error ? "Não foi possível carregar o contorno." : "Carregando…"}</p>)}
+      </ChartBlock>
+    </Section>
+  );
+}
+
 function ListaDeAnuncios({ modo }) {
   const [bairro, setBairro] = useState("");
   const [quartos, setQuartos] = useState("");
@@ -475,7 +548,7 @@ function ListaDeAnuncios({ modo }) {
   const state = useApi(`/api/imoveis?${qs}`);
   const rows = state.data ?? [];
   return (
-    <FullSection kicker="06 · Anúncios" title="Veja os anúncios, um a um" lede="Os 50 mais recentemente atualizados que combinam com a busca.">
+    <FullSection kicker="07 · Anúncios" title="Veja os anúncios, um a um" lede="Os 50 mais recentemente atualizados que combinam com a busca.">
       <div className="filters" style={{ marginTop: 0, marginBottom: 20 }}>
         <input aria-label="Buscar por bairro" placeholder="Buscar bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
         <input
@@ -538,6 +611,7 @@ export default function App() {
               <IdadeDoAnuncio mediana={d?.dias_mediana} modo={modo} />
               <PrecoETamanho modo={modo} />
               <VariacaoDePreco modo={modo} />
+              <MapaDeBairros modo={modo} />
               <ListaDeAnuncios modo={modo} />
             </main>
           </>
