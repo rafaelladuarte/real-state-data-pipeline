@@ -227,10 +227,14 @@ Variáveis da limpeza do HTML e da quarentena (valores padrão):
 |---|---|---|
 | `PURGE_HTML` | `true` | `false` mantém todo o HTML no storage |
 | `PURGE_LEGACY_HTML` | `false` | `true` também apaga o HTML tratado antes da carga incremental |
-| `QUARANTINE_MAX_BATCHES` | `20` | lotes com HTML em quarentena que param a esteira |
+| `QUARANTINE_MAX_BATCHES` | `20` | execuções com HTML ainda em quarentena que param a esteira |
 | `QUARANTINE_CONSECUTIVE` | `3` | execuções seguidas com itens novos em quarentena que a param |
 | `HTML_QUARANTINE_DAYS` | `7` | idade em que o HTML em quarentena é apagado |
 | `BATCH_ID` | automático | força o lote (por exemplo, para recarregar um lote específico) |
+
+Um lote só conta como carregado quando todas as suas linhas chegaram às tabelas finais. Um imóvel de imobiliária ainda não coletada, por exemplo, deixa o lote pendente: ele volta na próxima carga e o HTML dele fica guardado.
+
+Se a quarentena atingir o limite, a DAG `extraction` para logo na primeira task. Para retomar: corrija o parser, reprocesse o HTML retido (`REPROCESS=true python scripts/etl/extraction/parse_property.py`) e dispare a DAG `treatment`, que encadeia a `load`. O `purge_html` no fim tira da quarentena o que foi resolvido. Detalhes em `scripts/etl/quarantine.py`.
 
 Para paralelizar a coleta, abra vários terminais com `WORKER_ID=w1 python scripts/etl/extraction/property.py`, `WORKER_ID=w2 ...`: todos consomem a mesma fila e dividem o limite global de requisições.
 

@@ -26,19 +26,17 @@ def current_batch_id() -> str:
     return os.getenv("BATCH_ID") or new_batch_id()
 
 
-def pending_query(loaded: list[str], batch_id: str | None = None) -> dict:
-    """Filtro do Mongo para o que ainda precisa ir ao Postgres.
+def pending_query(pending: list[str]) -> dict | None:
+    """Filtro do Mongo para os documentos dos lotes `pending`.
 
-    Com `batch_id`, só aquele lote (mesmo já carregado: recarga forçada).
-    Sem ele, tudo que não está em `loaded`, inclusive os documentos sem
-    batch_id (que contam como o lote `legado`).
+    `legado` seleciona os documentos sem batch_id. Lista vazia: None (nada a buscar).
     """
-    if batch_id == LEGACY_BATCH:
-        return {"batch_id": {"$exists": False}}
-    if batch_id:
-        return {"batch_id": batch_id}
-
-    clauses = [{"batch_id": {"$exists": True, "$nin": loaded}}]
-    if LEGACY_BATCH not in loaded:
+    clauses = []
+    named = [batch for batch in pending if batch != LEGACY_BATCH]
+    if named:
+        clauses.append({"batch_id": {"$in": named}})
+    if LEGACY_BATCH in pending:
         clauses.append({"batch_id": {"$exists": False}})
-    return {"$or": clauses}
+    if not clauses:
+        return None
+    return clauses[0] if len(clauses) == 1 else {"$or": clauses}

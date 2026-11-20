@@ -115,6 +115,7 @@ Spec: [spec/coleta-em-lotes.md](spec/coleta-em-lotes.md). Os itens 21 e 22 já f
 - ✅ Documentos tratados e snapshots carregam um `batch_id` (único por execução do tratamento); o staging contém só o lote pendente.
 - ✅ Concorrência resolvida com advisory lock de transação, compartilhado por `migrate.py` e `model.py`, validada com os SQL de `scripts/etl/modeling` (as tabelas `TEMP` da spec não servem: migrate e model são processos separados). Decisão D8.
 - ✅ Teste de equivalência: carregar em 3 lotes e de uma vez deixa o Postgres no mesmo estado; reexecutar um lote não duplica; uma carga que falha deixa o lote pendente (`tests/test_incremental_load.py`).
+- ✅ Lote só conta como carregado quando todas as linhas chegaram às tabelas finais e o Mongo não tem documentos dele a mais (correções da revisão de código, com testes de regressão).
 - ✅ Validado nos dados reais de 19/11: os 438 imóveis entraram como lote `legado`, as contagens não mudaram e a execução seguinte não tinha nada pendente.
 
 ### 22. ✅ Remoção segura do HTML e quarentena — M

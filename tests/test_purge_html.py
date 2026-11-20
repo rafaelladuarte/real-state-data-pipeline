@@ -163,6 +163,48 @@ def test_purge_html_false_keeps_everything(mongo, monkeypatch):
     assert mongo.get_documents({}, "quarentena_html") == []
 
 
+def test_html_shared_with_an_unloaded_document_is_kept(mongo):
+    add_ad(mongo, 1, batch="lote-1")
+    # outro bruto com a mesma chave, em quarentena e nunca carregado
+    mongo.insert_documents([{"anuncio_id": "1", "html_key": key(1),
+                             "treat_quarantine": True}], "raw_imoveis")
+    store = FakeStore([key(1)])
+
+    assert purge_html.purge_loaded(mongo, store, loaded=["lote-1"]) == 0
+    assert store.objects == {key(1)}
+    assert all("html_purged" not in d for d in mongo.get_documents({}, "raw_imoveis"))
+
+
+def test_only_fully_loaded_batches_are_purgeable():
+    from scripts.etl.load.staging import fully_loaded_batches
+
+    recorded = {"lote-1": {"imoveis": 1, "imobiliarias": 1, "snapshots": 1}}
+    # o Mongo ganhou um documento do lote depois da carga: ainda pendente
+    assert fully_loaded_batches({"lote-1": {"imoveis": 2, "snapshots": 1}}, recorded) == []
+    assert fully_loaded_batches(
+        {"lote-1": {"imoveis": 1, "imobiliarias": 1, "snapshots": 1}}, recorded
+    ) == ["lote-1"]
+
+
+@needs_postgres
+def test_html_of_a_batch_with_unapplied_rows_is_kept(mongo):
+    """Imóvel órfão (imobiliária não coletada): o lote não é carregado, o HTML fica."""
+    store = FakeStore([key(1)])
+    add_ad(mongo, 1, batch="lote-1")
+    db = MongoClient(MONGO_URI)[MONGO_DB]
+    db["treat_imoveis"].insert_one({**imovel("h1", 1000), "id_imobiliaria": 99,
+                                    "batch_id": "lote-1"})
+    db["treat_imobiliarias"].insert_one({**AGENCY, "batch_id": "lote-1"})
+
+    with postgres_db("real_state_test_purge_orphan") as uri:
+        treat_data_to_postgres(mongo=mongo, postgres_uri=uri)
+        build_model(uri)
+        report = purge_html.run(mongo=mongo, store=store, postgres_uri=uri)
+
+    assert report["purged"] == 0
+    assert store.objects == {key(1)}
+
+
 # ---------- Falha na carga mantém o HTML; sucesso o apaga ----------
 
 @needs_postgres

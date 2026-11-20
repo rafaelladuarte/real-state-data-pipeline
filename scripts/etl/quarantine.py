@@ -6,8 +6,8 @@ quarentena no tratamento) fica no storage para ser examinado e reprocessado, e
 é registrado aqui na coleção `quarentena_html`.
 
 Limites (para não acumular disco nem insistir com um parser quebrado):
-- `QUARANTINE_MAX_BATCHES` (padrão 20): quantos lotes distintos podem ter HTML
-  em quarentena ao mesmo tempo;
+- `QUARANTINE_MAX_BATCHES` (padrão 20): quantos lotes distintos (execuções que
+  registraram itens) podem ter HTML em quarentena ao mesmo tempo;
 - `QUARANTINE_CONSECUTIVE` (padrão 3): quantas execuções seguidas podem
   acrescentar itens novos à quarentena;
 - `HTML_QUARANTINE_DAYS` (padrão 7): idade a partir da qual o HTML em
@@ -16,8 +16,20 @@ Ao atingir um dos dois primeiros limites a esteira para (QuarantineLimitError,
 que falha a task e dispara o alerta), em vez de gastar horas coletando com um
 parser quebrado.
 
-"Lote" aqui é a execução do tratamento (`batch_id`); com a coleta em lotes por
-página (item 23 do backlog) passa a ser a página.
+"Lote" na quarentena é a execução do purge_html que registrou o item (cada uma
+tem seu `batch_id`); com a coleta em lotes por página (item 23 do backlog)
+passa a ser a página.
+
+Como sair de um limite atingido (o `requeue` bloqueia a DAG `extraction`
+inteira, inclusive o parse):
+1. Examine `quarentena_html` (etapa e motivo de cada item) e corrija o parser.
+2. Reconstrua a imagem e reprocesse o HTML retido:
+   `REPROCESS=true python3 scripts/etl/extraction/parse_property.py`.
+3. Dispare a DAG `treatment` (ela dispara a `load`). O `purge_html` no fim tira
+   da quarentena o que deixou de falhar e registra uma execução sem itens novos,
+   o que zera a contagem de execuções seguidas. Quarentena vazia nunca bloqueia.
+Se o item não tem conserto, espere `HTML_QUARANTINE_DAYS` ou apague a entrada de
+`quarentena_html` e dispare a `load`.
 """
 from scripts.etl.quality import QualityError
 from scripts.utility.log import get_logger

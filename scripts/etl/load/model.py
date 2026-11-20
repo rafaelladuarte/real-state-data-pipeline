@@ -67,11 +67,17 @@ def build_model(uri: str | None = None) -> None:
             if name == "insert_tables_oficial.sql":
                 _warn_orphans(cursor)
         ensure_batch_column(cursor)  # staging criado pelos próprios SQL acima
-        batches = record_loaded_and_clear(cursor)
+        loaded, pending = record_loaded_and_clear(cursor)
         connection.commit()
         logger.info(
-            f"Modelagem aplicada; lotes carregados: {sorted(batches) or 'nenhum'}"
+            f"Modelagem aplicada; lotes carregados: {sorted(loaded) or 'nenhum'}"
         )
+        for batch_id, counts in pending.items():
+            logger.warning(
+                f"Lote {batch_id} continua pendente: linhas não aplicadas {counts} "
+                "(por exemplo, imóvel de imobiliária ainda não coletada). Ele volta "
+                "na próxima carga e o HTML dele é mantido."
+            )
     except Exception:
         connection.rollback()
         logger.error("Falha na modelagem; transação revertida")

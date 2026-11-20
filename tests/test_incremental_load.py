@@ -231,3 +231,56 @@ def test_old_staging_without_batch_column_still_loads(uri):
     build_model(uri)
     assert scalar(uri, "SELECT count(*) FROM imovel") == 1
     assert rows(uri, "SELECT batch_id FROM lote_carga") == [(LEGACY_BATCH,)]
+
+
+# ---------- Regressões da revisão de código ----------
+
+def test_batch_with_unapplied_rows_stays_pending_until_resolved(mongo, uri):
+    """Imóvel de imobiliária ainda não coletada não pode sumir para sempre."""
+    orphan = {**imovel("h1", 1000), "id_imobiliaria": 99}
+    put(mongo, "lote-1", [orphan], [snap("h1", 1000, "01/11/2026")], [AGENCY])
+    load(mongo, uri)
+
+    # nada do imóvel chegou e o lote não foi registrado
+    assert scalar(uri, "SELECT count(*) FROM imovel") == 0
+    assert scalar(uri, "SELECT count(*) FROM lote_carga") == 0
+    # continua pendente: a próxima carga o envia de novo
+    assert treat_data_to_postgres(mongo=mongo, postgres_uri=uri)["_treat_imoveis"] == 1
+
+    # a imobiliária chega em outro lote: agora tudo se aplica
+    put(mongo, "lote-2", agencies=[{**AGENCY, "id_imobiliaria": 99}])
+    load(mongo, uri)
+    assert scalar(uri, "SELECT count(*) FROM imovel") == 1
+    assert scalar(uri, "SELECT count(*) FROM imovel_snapshot") == 1
+    assert sorted(r[0] for r in rows(uri, "SELECT batch_id FROM lote_carga")) == [
+        "lote-1", "lote-2"
+    ]
+
+
+def test_batch_loaded_halfway_is_completed_later(mongo, uri):
+    """A carga pegou o lote enquanto o tratamento ainda gravava."""
+    put(mongo, "lote-1", [imovel("h1", 1000)], agencies=[AGENCY])
+    load(mongo, uri)
+    assert rows(uri, "SELECT imoveis FROM lote_carga") == [(1,)]
+
+    # o tratamento termina de gravar o mesmo lote depois da carga
+    put(mongo, "lote-1", [imovel("h2", 2000, "Rua B, 5 - Centro, Uberlândia - MG")])
+    staged = load(mongo, uri)
+
+    assert staged["_treat_imoveis"] == 2  # o lote volta inteiro
+    assert scalar(uri, "SELECT count(*) FROM imovel") == 2
+    assert rows(uri, "SELECT imoveis FROM lote_carga") == [(2,)]
+    assert load(mongo, uri) == {}
+
+
+def test_new_field_after_a_failed_load_does_not_break_staging(mongo, uri):
+    """Sobra de staging + documento com campo novo não pode travar a carga."""
+    put(mongo, "lote-1", [imovel("h1", "preço inválido")], agencies=[AGENCY])
+    treat_data_to_postgres(mongo=mongo, postgres_uri=uri)
+    with pytest.raises(psycopg2.Error):
+        build_model(uri)
+
+    put(mongo, "lote-2", [imovel("h2", 2000, "Rua B, 5 - Centro, Uberlândia - MG",
+                                 campo_novo="x")])
+    staged = treat_data_to_postgres(mongo=mongo, postgres_uri=uri)
+    assert staged["_treat_imoveis"] == 2  # os dois lotes pendentes, sem erro

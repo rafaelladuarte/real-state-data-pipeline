@@ -1,13 +1,16 @@
 """Apaga o HTML bruto cujo lote já está carregado no Postgres.
 
 Roda depois da carga (DAG `load`). Regra: o HTML de um anúncio só é apagado
-quando tudo já deu certo para ele: foi parseado, tratado e o lote dele consta em
-`lote_carga` (registrado na mesma transação que aplicou os dados). Qualquer
-falha antes disso deixa o HTML no storage:
+quando tudo já deu certo para ele: foi parseado, tratado e o lote dele foi
+aplicado por inteiro no Postgres (consta em `lote_carga` e o Mongo não tem
+documentos dele a mais; regra em staging.py). Qualquer falha antes disso deixa
+o HTML no storage:
 
 - parse com erro ou anúncio em quarentena no tratamento: fica registrado em
   `quarentena_html` (veja quarantine.py), com limites que param a esteira;
-- lote ainda não carregado: o HTML espera a próxima execução.
+- lote ainda não carregado, carregado pela metade ou com linhas não aplicadas:
+  o HTML espera a próxima execução;
+- outro documento que usa a mesma chave ainda não foi carregado: o HTML fica.
 
 `PURGE_HTML=false` desliga tudo (o HTML fica para sempre, como antes).
 O HTML de anúncios tratados antes da carga incremental (sem batch_id) só é
@@ -15,6 +18,9 @@ apagado com `PURGE_LEGACY_HTML=true`, para não surpreender quem ainda quer
 reprocessar a coleta antiga.
 """
 from scripts.etl.batch import LEGACY_BATCH, current_batch_id
+from scripts.etl.load.staging import (
+    fully_loaded_batches, mongo_batch_counts, recorded_counts,
+)
 from scripts.etl.quarantine import (
     PURGE_STEP, check_limits, expire, purge_enabled, sync,
 )
@@ -27,7 +33,7 @@ from datetime import datetime, UTC
 
 import os
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
 
 logger = get_logger(__name__)
@@ -35,20 +41,13 @@ logger = get_logger(__name__)
 CHUNK = 500
 
 
-def loaded_batches_from_postgres(postgres_uri: str) -> list[str]:
+def recorded_counts_from_postgres(postgres_uri: str) -> dict[str, dict[str, int]]:
     engine = create_engine(postgres_uri)
+    connection = engine.raw_connection()
     try:
-        with engine.connect() as connection:
-            exists = connection.execute(
-                text("SELECT to_regclass('public.lote_carga') IS NOT NULL")
-            ).scalar()
-            if not exists:
-                return []
-            return [
-                row[0] for row in
-                connection.execute(text("SELECT batch_id FROM public.lote_carga"))
-            ]
+        return recorded_counts(connection.cursor())
     finally:
+        connection.close()
         engine.dispose()
 
 
@@ -76,31 +75,42 @@ def purge_loaded(mongo, store, loaded: list[str], include_legacy: bool = False) 
     purged = 0
     for start in range(0, len(docs), CHUNK):
         chunk = docs[start:start + CHUNK]
+        ids = [doc["_id"] for doc in chunk]
         keys = sorted({doc["html_key"] for doc in chunk})
 
-        # Um link reenfileirado e recoletado pode apontar para a mesma chave e
-        # ainda esperar o parse: esse HTML não pode sumir
-        waiting = {
+        # A mesma chave pode ser usada por outro documento que ainda precisa
+        # dela: um link recoletado esperando o parse, ou um bruto que não é
+        # deste lote carregado (em quarentena, por exemplo). Esse HTML fica.
+        in_use = {
             doc["html_key"] for doc in mongo.get_documents(
                 query={"html_key": {"$in": keys}, "parsed": {"$exists": False}},
                 collection="links_imoveis",
             )
+        } | {
+            doc["html_key"] for doc in mongo.get_documents(
+                query={
+                    "html_key": {"$in": keys},
+                    "_id": {"$nin": ids},
+                    "html_purged": {"$exists": False},
+                },
+                collection="raw_imoveis",
+            )
         }
-        keys = [key for key in keys if key not in waiting]
+        keys = [key for key in keys if key not in in_use]
         if not keys:
             continue
 
         # Primeiro o storage; só então o Mongo. Se apagar falhar, nada é
         # marcado e a próxima execução tenta de novo.
         store.delete_many(keys)
-        now = datetime.now(UTC)
-        marked = {"$set": {"html_purged": True, "html_purged_at": now}}
-        deleted = set(keys)
-        for collection in ("raw_imoveis", "links_imoveis"):
-            mongo.update_documents(
-                query={"html_key": {"$in": list(deleted)}},
-                set=marked, collection=collection,
-            )
+        marked = {"$set": {"html_purged": True, "html_purged_at": datetime.now(UTC)}}
+        mongo.update_documents(
+            query={"_id": {"$in": ids}, "html_key": {"$in": keys}},
+            set=marked, collection="raw_imoveis",
+        )
+        mongo.update_documents(
+            query={"html_key": {"$in": keys}}, set=marked, collection="links_imoveis",
+        )
         purged += len(keys)
     logger.info(f"{purged} HTMLs de lotes carregados foram apagados")
     return purged
@@ -115,9 +125,10 @@ def run(mongo=None, store=None, postgres_uri=None, loaded=None) -> dict:
     mongo = mongo or MongoDB(uri=get_secret_value("MONGO_URI"))
     store = store or ObjectStore()
     if loaded is None:
-        loaded = loaded_batches_from_postgres(
+        recorded = recorded_counts_from_postgres(
             postgres_uri or get_secret_value("POSTGRESQL_URI")
         )
+        loaded = fully_loaded_batches(mongo_batch_counts(mongo), recorded)
     include_legacy = os.getenv("PURGE_LEGACY_HTML", "false").lower() == "true"
 
     purged = purge_loaded(mongo, store, loaded, include_legacy)
