@@ -167,3 +167,8 @@ app/web/dist/
 # HTMLs que fazem parte do código (a regra *.html acima é para coletas locais)
 !app/web/index.html
 !tests/fixtures/*.html
+
+# Airflow local
+secrets/
+airflow_home/
+.env.bak

@@ -37,9 +37,12 @@ class WebScraper:
         options.add_argument("--disable-cache")
         options.add_argument("--incognito")
 
-        # options.add_argument("--disable-dev-shm-usage")
-        # options.add_argument("--no-sandbox")
-        # options.add_argument("--remote-debugging-port=9222")
+        # Em container o processo roda como root: o Chrome não abre o sandbox nesse
+        # caso, e /dev/shm tem só 64 MB. Fora de container (usuário comum) mantém o
+        # sandbox do Chrome ligado.
+        if os.geteuid() == 0:
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
 
         # Driver fixo na imagem Docker (CHROMEDRIVER_PATH); fallback baixa via manager
         driver_path = os.getenv("CHROMEDRIVER_PATH") or ChromeDriverManager().install()

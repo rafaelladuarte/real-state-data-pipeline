@@ -35,6 +35,8 @@ x-airflow-common:
     - airflow
   # user: "${AIRFLOW_UID:-50000}:${DOCKER_GID}"
   user: "${AIRFLOW_UID:-50000}:0"
+  group_add:
+    - "${DOCKER_GID}"
   depends_on:
     &airflow-common-depends-on
     airflow_postgres:
