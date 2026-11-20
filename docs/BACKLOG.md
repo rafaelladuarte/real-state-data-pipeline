@@ -20,7 +20,7 @@ Restrições que pesam nas prioridades:
 
 | Fase | # | Item | Esforço | Status | Depende de |
 |---|---|---|---|---|---|
-| 1. Operação contínua | 4 | Airflow de ponta a ponta | M | 🔁 | – |
+| 1. Operação contínua | 4 | Airflow de ponta a ponta | M | 🔁 | – (bloqueio da Cloudflare em 20/11) |
 | | 9 | Subida em um comando | M | 🔁 | 4 |
 | | 10 | Segredos fora da imagem Docker | P | ✅ | – |
 | | 15 | Fechar o mapa (termos do IBGE) | P | 🔁 | – |
@@ -80,7 +80,9 @@ Outras entregas:
 **Aceite:**
 - ✅ Variáveis documentadas no `.env.example`, nome da imagem alinhado (`etl-scripts`), rede entre containers e `.expand` nas DAGs.
 - ✅ DAG `load` com caminhos corretos (`DockerOperator`).
-- ⬜ A DAG `extraction` roda inteira no Airflow (coleta, parse, tratamento e carga) e a execução seguinte, em outro dia, gera a segunda coleta.
+- ✅ Airflow sobe pelo compose e carrega as 3 DAGs sem erro (20/11/2026). Corrigido no caminho: o `DockerOperator` não tinha acesso ao socket do Docker (`group_add` com `DOCKER_GID` no compose e no `.env.example`), e o Chrome não abria no container rodando como root (`--no-sandbox` e `--disable-dev-shm-usage` em `scraper.py`, só quando root).
+- 🔁 Primeira execução real (20/11/2026): `requeue_stale_links` passou; `get_links_property` foi barrada pela Cloudflare (`Attention Required!`) na primeira requisição. Uma requisição avulsa pela máquina local, fora do container, também foi barrada, então o bloqueio não é do container: é do IP ou do site. Nada foi contornado; aguardar e tentar de novo com uma única requisição.
+- ⬜ A DAG `extraction` roda inteira no Airflow (coleta, parse, tratamento e carga) e a execução seguinte, em outro dia, gera a segunda coleta. Inclui a primeira execução de `purge_html` e da carga incremental dentro do Airflow.
 - ⬜ Captura da DAG executando no Airflow (usada no item 13).
 
 ### 9. CI e subida em um comando — M (depende do item 4)
