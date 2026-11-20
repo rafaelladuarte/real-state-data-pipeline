@@ -594,9 +594,10 @@ const SECOES = [
 ];
 const LIMIAR_ROLAGEM = 140; // px abaixo do topo a partir do qual a seção conta como atual
 
-/* Telas largas: coluna à esquerda. Demais: faixa fixa abaixo do topo, com rolagem lateral. */
+/* Vive dentro do topo: links em telas largas, botão com a seção atual nas menores. */
 function IndiceSecoes() {
   const [atual, setAtual] = useState(null);
+  const [aberto, setAberto] = useState(false);
   useEffect(() => {
     let quadro = 0;
     const calcular = () => {
@@ -611,7 +612,7 @@ function IndiceSecoes() {
     const agendar = () => { if (!quadro) quadro = requestAnimationFrame(calcular); };
     window.addEventListener("scroll", agendar, { passive: true });
     window.addEventListener("resize", agendar);
-    // A altura do topo varia (fonte, largura): o índice e o recuo dos títulos usam o valor medido
+    // A altura do topo varia (fonte, largura): o recuo dos títulos usa o valor medido
     const topo = document.querySelector(".topbar-wrap");
     const medirTopo = () =>
       document.documentElement.style.setProperty("--topbar-h", `${topo.offsetHeight}px`);
@@ -639,27 +640,37 @@ function IndiceSecoes() {
     };
   }, []);
 
-  /* Na faixa horizontal, mantém o item atual à vista sem mexer na rolagem da página */
+  /* Menu aberto: fecha com Esc ou ao clicar fora */
   useEffect(() => {
-    const item = document.querySelector(".indice a[aria-current]");
-    const faixa = item?.closest(".indice-lista");
-    if (faixa && faixa.scrollWidth > faixa.clientWidth) {
-      faixa.scrollTo({ left: item.offsetLeft - (faixa.clientWidth - item.offsetWidth) / 2 });
-    }
-  }, [atual]);
+    if (!aberto) return undefined;
+    const fora = (e) => { if (!e.target.closest(".indice")) setAberto(false); };
+    const esc = (e) => { if (e.key === "Escape") setAberto(false); };
+    document.addEventListener("pointerdown", fora);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
 
+  const links = SECOES.map(([id, nome]) => (
+    <li key={id}>
+      <a href={`#${id}`} aria-current={atual === id ? "location" : undefined} onClick={() => setAberto(false)}>
+        {nome}
+      </a>
+    </li>
+  ));
+  const nomeAtual = SECOES.find(([id]) => id === atual)?.[1] ?? "Seções";
   return (
     <nav className="indice" aria-label="Seções da página">
-      <ol className="indice-lista">
-        {SECOES.map(([id, nome], i) => (
-          <li key={id}>
-            <a href={`#${id}`} aria-current={atual === id ? "location" : undefined}>
-              <span className="indice-num">{String(i + 1).padStart(2, "0")}</span>
-              {nome}
-            </a>
-          </li>
-        ))}
-      </ol>
+      <ul className="indice-links">{links}</ul>
+      <button
+        className="indice-botao" aria-expanded={aberto} aria-controls="indice-menu"
+        onClick={() => setAberto((v) => !v)}
+      >
+        {nomeAtual}<span aria-hidden="true" className="indice-seta">▾</span>
+      </button>
+      <ul id="indice-menu" className="indice-menu" hidden={!aberto}>{links}</ul>
     </nav>
   );
 }
@@ -680,11 +691,11 @@ export default function App() {
       <div className="topbar-wrap">
         <div className="wrap topbar">
           <span className="brand"><span className="brand-name">Mercado imobiliário</span></span>
+          {modo && <IndiceSecoes />}
           <ModoToggle modos={modos} modo={modo} onChange={setModo} />
           <ThemeToggle />
         </div>
       </div>
-      {modo && <IndiceSecoes />}
       <div className="wrap">
         {!modo ? (
           <p className="msg">{filtros.error ? "Não foi possível carregar." : "Carregando…"}</p>

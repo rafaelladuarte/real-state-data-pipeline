@@ -96,36 +96,40 @@ button, select, input { font: inherit; color: inherit; }
 .seg button:hover { color: var(--ink); }
 .seg button.is-on { background: var(--accent); color: var(--on-accent); }
 
-/* ---------- Índice de seções ---------- */
+/* ---------- Índice de seções (dentro do topo) ---------- */
 :root { --topbar-h: 58px; }
-html { scroll-padding-top: calc(var(--topbar-h) + 56px); }
+html { scroll-padding-top: calc(var(--topbar-h) + 16px); }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
-.indice {
-  position: sticky; top: var(--topbar-h); z-index: 9; border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--page) 88%, transparent);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-}
-.indice-lista {
-  list-style: none; margin: 0 auto; padding: 8px 12px; max-width: 1120px; box-sizing: border-box;
-  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
-}
-.indice-lista::-webkit-scrollbar { display: none; }
+.indice { position: relative; min-width: 0; }
+.indice ul { list-style: none; margin: 0; padding: 0; }
 .indice a {
-  display: flex; align-items: baseline; gap: 6px; white-space: nowrap; text-decoration: none;
-  padding: 5px 12px; border-radius: 999px; font-size: 13.5px; font-weight: 500; color: var(--ink-2);
+  display: block; white-space: nowrap; text-decoration: none; font-size: 13.5px; font-weight: 500;
+  color: var(--ink-2); padding: 6px 4px;
 }
-.indice a:hover { color: var(--ink); background: var(--wash); }
-.indice a[aria-current] { background: var(--wash-2); color: var(--ink); font-weight: 600; }
-.indice-num { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--accent-ink); letter-spacing: 0.04em; }
-
-/* Telas largas: sobra margem ao lado do conteúdo, então o índice vira uma coluna fixa */
-@media (min-width: 1440px) {
-  html { scroll-padding-top: calc(var(--topbar-h) + 16px); }
-  .indice { position: fixed; top: 50%; left: 28px; width: 132px; transform: translateY(-50%);
-    background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .indice-lista { flex-direction: column; gap: 2px; padding: 0; max-width: none; overflow: visible; }
-  .indice a { border-radius: 8px; padding: 6px 10px; border-left: 2px solid transparent; }
-  .indice a[aria-current] { background: none; border-left-color: var(--accent); }
+.indice a:hover { color: var(--ink); }
+/* Seção atual: texto cheio e sublinhado na cor de identidade, o mesmo em todas as larguras */
+.indice a[aria-current] {
+  color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px; text-underline-offset: 8px;
+}
+.indice-links { display: none; gap: 14px; }
+.indice-botao {
+  display: inline-flex; align-items: center; gap: 6px; background: none; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px;
+  font-weight: 600; color: var(--ink); white-space: nowrap;
+}
+.indice-botao:hover { border-color: var(--accent); }
+.indice-seta { font-size: 10px; color: var(--ink-2); }
+.indice-botao[aria-expanded="true"] .indice-seta { transform: rotate(180deg); }
+.indice-menu {
+  position: absolute; top: calc(100% + 10px); left: 0; min-width: 190px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+}
+.indice-menu a { padding: 9px 12px; border-radius: 8px; text-underline-offset: 6px; }
+.indice-menu a:hover { background: var(--wash); }
+@media (min-width: 1100px) {
+  .indice-links { display: flex; }
+  .indice-botao, .indice-menu { display: none; }
 }
 
 /* ---------- Manchete e destaque ---------- */
@@ -254,7 +258,6 @@ td.price { font-weight: 650; }
 }
 @media (max-width: 520px) {
   .wrap { padding: 0 16px; }
-  .indice-lista { padding-left: 4px; padding-right: 4px; }
   .brand-name { display: none; }
   .seg button { padding: 6px 14px; }
   .tile { padding: 14px 14px; }
