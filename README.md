@@ -255,14 +255,41 @@ A API lê o Postgres em `localhost:5434`; use `DATABASE_URL` para apontar para o
 
 ### 5. Executar pelo Airflow
 
+Antes de subir, ajuste o `.env` (copiado do `.env.example`) e crie os segredos que as DAGs leem:
+
 ```bash
-docker build -t etl-scripts scripts
+sed -i "s/^AIRFLOW_UID=.*/AIRFLOW_UID=$(id -u)/; s/^DOCKER_GID=.*/DOCKER_GID=$(stat -c %g /var/run/docker.sock)/" .env
+mkdir -p logs plugins secrets
+cat > secrets/variables.yaml <<'YAML'
+MONGO_URI: mongodb://username:password@mongodb:27017/?authSource=admin
+POSTGRESQL_URI: postgresql+psycopg2://username:password@real_state_postgres:5432/real_state
+S3_ACCESS_KEY: username
+S3_SECRET_KEY: password
+YAML
+echo "{}" > secrets/connections.yaml
+```
+
+- `DOCKER_GID` é o grupo dono do socket do Docker. Sem ele, o `DockerOperator` falha com `Permission denied` ao lançar os containers de ETL.
+- Dentro da rede do compose, os serviços se chamam `mongodb`, `real_state_postgres` e `object_store`, e não `localhost`.
+- `secrets/`, `logs/` e `plugins/` estão no `.gitignore`.
+
+```bash
+docker build -t etl-scripts scripts   # refaça sempre que mudar algo em scripts/
 docker compose up -d
 ```
 
+Abra http://localhost:8080 (`airflow` / `airflow`). As DAGs nascem pausadas: ative `extraction`, `treatment` e `load` e dispare a `extraction`. Pelo terminal:
+
+```bash
+for dag in extraction treatment load; do docker compose exec airflow_scheduler airflow dags unpause $dag; done
+docker compose exec airflow_scheduler airflow dags trigger extraction
+```
+
+A porta 27017 do Mongo precisa estar livre na máquina.
+
 As DAGs `extraction` → `treatment` → `load` (que termina com `purge_html`, a limpeza do HTML já carregado) rodam os mesmos scripts em containers `etl-scripts` na rede `real_state_airflow`. Elas leem `MONGO_URI`, `POSTGRESQL_URI` e `S3_*` das Variables do Airflow (veja `.env.example`). A DAG `extraction` roda diariamente e reenfileira links coletados há mais de 7 dias, o que alimenta o histórico de preço.
 
-> O compose inclui o `airflow_triggerer`, exigido pelos `TriggerDagRunOperator` deferrable. As tasks de coleta e parse rodam com `retries: 0` (repetir após bloqueio ou `QualityError` não ajuda). A sequência `extraction` → `treatment` → `load` pelo Airflow ainda **não foi executada de ponta a ponta**; os scripts e os serviços de dados foram testados individualmente.
+> O compose inclui o `airflow_triggerer`, exigido pelos `TriggerDagRunOperator` deferrable. As tasks de coleta e parse rodam com `retries: 0` (repetir após bloqueio ou `QualityError` não ajuda). A sequência `extraction` → `treatment` → `load` pelo Airflow ainda **não foi executada de ponta a ponta**; os scripts e os serviços de dados foram testados individualmente. A primeira execução real (20/11/2026) passou pelo `requeue_stale_links` e foi barrada pela Cloudflare na primeira requisição de `get_links_property`; uma requisição avulsa fora do container também foi barrada, então o bloqueio é do IP ou do site, não do ambiente. Nada foi contornado.
 
 ### 6. Testes
 
@@ -272,7 +299,7 @@ pytest          # testes de unidade
 ruff check .    # lint
 ```
 
-Os testes de integração (fila, limitador e carga no Postgres) rodam quando há servidores disponíveis:
+Os testes de integração (fila, limitador, carga no Postgres, carga incremental por lote e limpeza do HTML com quarentena) rodam quando há servidores disponíveis. Eles usam bancos descartáveis (`real_state_test*`) e nunca tocam em `real_state`:
 
 ```bash
 MONGO_TEST_URI="mongodb://username:password@localhost:27017/?authSource=admin" \
